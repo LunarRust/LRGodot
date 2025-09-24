@@ -495,6 +495,7 @@ Light3D::Light3D(RenderingServer::LightType p_type) {
 	set_param(PARAM_INTENSITY, 1000.0);
 	set_temperature(6500.0); // Nearly white.
 	set_disable_scale(true);
+	set_enable_distance_fade(distance_fade_enabled);
 }
 
 Light3D::Light3D() {
@@ -617,6 +618,14 @@ void OmniLight3D::set_shadow_mode(ShadowMode p_mode) {
 OmniLight3D::ShadowMode OmniLight3D::get_shadow_mode() const {
 	return shadow_mode;
 }
+//void OmniLight3D::set_distance_fade_enabled(bool p_enable) {
+//	distance_fade_enabled = p_enable;
+//	RS::get_singleton()->light_set_distance_fade(light, p_enable, distance_fade_begin, distance_fade_shadow, distance_fade_length);
+//   //Light3D::set_enable_distance_fade(p_enable);
+//}
+//bool OmniLight3D::get_distance_fade_enabled() const {
+//	return distance_fade_enabled;
+//}
 
 PackedStringArray OmniLight3D::get_configuration_warnings() const {
 	PackedStringArray warnings = Light3D::get_configuration_warnings();
@@ -648,8 +657,6 @@ void OmniLight3D::_bind_methods() {
 OmniLight3D::OmniLight3D() :
 		Light3D(RenderingServer::LIGHT_OMNI) {
 	set_shadow_mode(SHADOW_CUBE);
-	// Force set distance fade, as it does not appear to check during light creation.
-	Light3D::set_enable_distance_fade(distance_fade_enabled);
 	
 }
 
@@ -683,6 +690,4 @@ SpotLight3D::SpotLight3D() :
 		Light3D(RenderingServer::LIGHT_SPOT) {
 	// Decrease the default shadow bias to better suit most scenes.
 	set_param(PARAM_SHADOW_BIAS, 0.03);
-	// Force set distance fade, as it does not appear to check during light creation.
-	Light3D::set_enable_distance_fade(distance_fade_enabled);
 }
