@@ -648,6 +648,9 @@ void OmniLight3D::_bind_methods() {
 OmniLight3D::OmniLight3D() :
 		Light3D(RenderingServer::LIGHT_OMNI) {
 	set_shadow_mode(SHADOW_CUBE);
+	// Force set distance fade, as it does not appear to check during light creation.
+	Light3D::set_enable_distance_fade(distance_fade_enabled);
+	
 }
 
 PackedStringArray SpotLight3D::get_configuration_warnings() const {
@@ -680,4 +683,6 @@ SpotLight3D::SpotLight3D() :
 		Light3D(RenderingServer::LIGHT_SPOT) {
 	// Decrease the default shadow bias to better suit most scenes.
 	set_param(PARAM_SHADOW_BIAS, 0.03);
+	// Force set distance fade, as it does not appear to check during light creation.
+	Light3D::set_enable_distance_fade(distance_fade_enabled);
 }
