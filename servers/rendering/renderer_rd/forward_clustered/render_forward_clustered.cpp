@@ -789,19 +789,22 @@ void RenderForwardClustered::_fill_instance_data(RenderListType p_render_list, i
 		SceneState::InstanceData &instance_data = scene_state.instance_data[p_render_list][i + p_offset];
 
 		if (likely(inst->store_transform_cache)) {
-			RendererRD::MaterialStorage::store_transform(inst->transform, instance_data.transform);
-			RendererRD::MaterialStorage::store_transform(inst->prev_transform, instance_data.prev_transform);
+			RendererRD::MaterialStorage::store_transform_transposed_3x4(inst->transform, instance_data.transform);
+			RendererRD::MaterialStorage::store_transform_transposed_3x4(inst->prev_transform, instance_data.prev_transform);
 
 #ifdef REAL_T_IS_DOUBLE
 			// Split the origin into two components, the float approximation and the missing precision.
 			// In the shader we will combine these back together to restore the lost precision.
-			RendererRD::MaterialStorage::split_double(inst->transform.origin.x, &instance_data.transform[12], &instance_data.transform[3]);
-			RendererRD::MaterialStorage::split_double(inst->transform.origin.y, &instance_data.transform[13], &instance_data.transform[7]);
-			RendererRD::MaterialStorage::split_double(inst->transform.origin.z, &instance_data.transform[14], &instance_data.transform[11]);
+			RendererRD::MaterialStorage::split_double(inst->transform.origin.x, &instance_data.transform[12], &instance_data.model_precision[0]);
+			RendererRD::MaterialStorage::split_double(inst->transform.origin.y, &instance_data.transform[13], &instance_data.model_precision[1]);
+			RendererRD::MaterialStorage::split_double(inst->transform.origin.z, &instance_data.transform[14], &instance_data.model_precision[2]);
+			RendererRD::MaterialStorage::split_double(inst->prev_transform.origin.x, &instance_data.prev_transform[12], &instance_data.prev_model_precision[0]);
+			RendererRD::MaterialStorage::split_double(inst->prev_transform.origin.y, &instance_data.prev_transform[13], &instance_data.prev_model_precision[1]);
+			RendererRD::MaterialStorage::split_double(inst->prev_transform.origin.z, &instance_data.prev_transform[14], &instance_data.prev_model_precision[2]);
 #endif
 		} else {
-			RendererRD::MaterialStorage::store_transform(Transform3D(), instance_data.transform);
-			RendererRD::MaterialStorage::store_transform(Transform3D(), instance_data.prev_transform);
+			RendererRD::MaterialStorage::store_transform_transposed_3x4(Transform3D(), instance_data.transform);
+			RendererRD::MaterialStorage::store_transform_transposed_3x4(Transform3D(), instance_data.prev_transform);
 		}
 
 		instance_data.flags = inst->flags_cache;
@@ -841,7 +844,7 @@ void RenderForwardClustered::_fill_instance_data(RenderListType p_render_list, i
 
 		RenderElementInfo &element_info = rl->element_info[p_offset + i];
 
-		element_info.value = uint32_t(surface->sort.sort_key1 & 0xFFF);
+		element_info.value = uint32_t(surface->sort.sort_key2 & 0x0FFF00000000);
 
 		if (cant_repeat) {
 			prev_surface = nullptr;
@@ -4421,7 +4424,7 @@ static RD::FramebufferFormatID _get_depth_framebuffer_format_for_pipeline(bool p
 
 	passes.ptrw()[0].depth_attachment = 0;
 
-	return RD::get_singleton()->framebuffer_format_create_multipass(attachments, passes);
+	return RD::get_singleton()->framebuffer_format_create_multipass(Vector<RD::AttachmentFormat>(attachments), passes);
 }
 
 static RD::FramebufferFormatID _get_shadow_cubemap_framebuffer_format_for_pipeline() {
@@ -4433,7 +4436,7 @@ static RD::FramebufferFormatID _get_shadow_cubemap_framebuffer_format_for_pipeli
 	attachment.usage_flags = RendererRD::LightStorage::get_cubemap_depth_usage_bits();
 	attachments.push_back(attachment);
 
-	return RD::get_singleton()->framebuffer_format_create(attachments);
+	return RD::get_singleton()->framebuffer_format_create(Vector<RD::AttachmentFormat>(attachments));
 }
 
 static RD::FramebufferFormatID _get_shadow_atlas_framebuffer_format_for_pipeline(bool p_use_16_bits) {
@@ -4445,7 +4448,7 @@ static RD::FramebufferFormatID _get_shadow_atlas_framebuffer_format_for_pipeline
 	attachment.usage_flags = RendererRD::LightStorage::get_shadow_atlas_depth_usage_bits();
 	attachments.push_back(attachment);
 
-	return RD::get_singleton()->framebuffer_format_create(attachments);
+	return RD::get_singleton()->framebuffer_format_create(Vector<RD::AttachmentFormat>(attachments));
 }
 
 static RD::FramebufferFormatID _get_reflection_probe_depth_framebuffer_format_for_pipeline() {
@@ -4457,7 +4460,7 @@ static RD::FramebufferFormatID _get_reflection_probe_depth_framebuffer_format_fo
 	attachment.usage_flags = RendererRD::LightStorage::get_reflection_probe_depth_usage_bits();
 	attachments.push_back(attachment);
 
-	return RD::get_singleton()->framebuffer_format_create(attachments);
+	return RD::get_singleton()->framebuffer_format_create(Vector<RD::AttachmentFormat>(attachments));
 }
 
 void RenderForwardClustered::_mesh_compile_pipeline_for_surface(SceneShaderForwardClustered::ShaderData *p_shader, void *p_mesh_surface, bool p_ubershader, bool p_instanced_surface, RS::PipelineSource p_source, SceneShaderForwardClustered::ShaderData::PipelineKey &r_pipeline_key, Vector<ShaderPipelinePair> *r_pipeline_pairs) {
