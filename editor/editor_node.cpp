@@ -61,16 +61,17 @@
 #include "scene/gui/rich_text_label.h"
 #include "scene/gui/split_container.h"
 #include "scene/gui/tab_container.h"
+#include "scene/main/timer.h"
 #include "scene/main/window.h"
 #include "scene/property_utils.h"
 #include "scene/resources/image_texture.h"
 #include "scene/resources/packed_scene.h"
 #include "scene/resources/portable_compressed_texture.h"
 #include "scene/theme/theme_db.h"
-#include "servers/display_server.h"
-#include "servers/navigation_server_2d.h"
-#include "servers/navigation_server_3d.h"
-#include "servers/rendering_server.h"
+#include "servers/display/display_server.h"
+#include "servers/navigation_2d/navigation_server_2d.h"
+#include "servers/navigation_3d/navigation_server_3d.h"
+#include "servers/rendering/rendering_server.h"
 
 #include "editor/animation/animation_player_editor_plugin.h"
 #include "editor/asset_library/asset_library_editor_plugin.h"
@@ -143,6 +144,7 @@
 #include "editor/run/editor_run.h"
 #include "editor/run/editor_run_bar.h"
 #include "editor/run/game_view_plugin.h"
+#include "editor/scene/3d/material_3d_conversion_plugins.h"
 #include "editor/scene/3d/mesh_library_editor_plugin.h"
 #include "editor/scene/3d/node_3d_editor_plugin.h"
 #include "editor/scene/3d/root_motion_editor_plugin.h"
@@ -183,11 +185,11 @@
 #include "modules/modules_enabled.gen.h" // For gdscript, mono.
 
 #ifndef PHYSICS_2D_DISABLED
-#include "servers/physics_server_2d.h"
+#include "servers/physics_2d/physics_server_2d.h"
 #endif // PHYSICS_2D_DISABLED
 
 #ifndef PHYSICS_3D_DISABLED
-#include "servers/physics_server_3d.h"
+#include "servers/physics_3d/physics_server_3d.h"
 #endif // PHYSICS_3D_DISABLED
 
 #ifdef ANDROID_ENABLED
@@ -453,6 +455,10 @@ void EditorNode::_update_from_settings() {
 	String current_fallback_locale = GLOBAL_GET("internationalization/locale/fallback");
 	if (current_fallback_locale != TranslationServer::get_singleton()->get_fallback_locale()) {
 		TranslationServer::get_singleton()->set_fallback_locale(current_fallback_locale);
+		Ref<TranslationDomain> domain = TranslationServer::get_singleton()->get_main_domain();
+		if (!domain->is_enabled()) {
+			domain->set_locale_override(current_fallback_locale);
+		}
 		scene_root->propagate_notification(Control::NOTIFICATION_LAYOUT_DIRECTION_CHANGED);
 	}
 
@@ -466,8 +472,7 @@ void EditorNode::_update_from_settings() {
 	bool glow_bicubic = int(GLOBAL_GET("rendering/environment/glow/upscale_mode")) > 0;
 	RS::get_singleton()->environment_set_ssil_quality(RS::EnvironmentSSILQuality(int(GLOBAL_GET("rendering/environment/ssil/quality"))), GLOBAL_GET("rendering/environment/ssil/half_size"), GLOBAL_GET("rendering/environment/ssil/adaptive_target"), GLOBAL_GET("rendering/environment/ssil/blur_passes"), GLOBAL_GET("rendering/environment/ssil/fadeout_from"), GLOBAL_GET("rendering/environment/ssil/fadeout_to"));
 	RS::get_singleton()->environment_glow_set_use_bicubic_upscale(glow_bicubic);
-	RS::EnvironmentSSRRoughnessQuality ssr_roughness_quality = RS::EnvironmentSSRRoughnessQuality(int(GLOBAL_GET("rendering/environment/screen_space_reflection/roughness_quality")));
-	RS::get_singleton()->environment_set_ssr_roughness_quality(ssr_roughness_quality);
+	RS::get_singleton()->environment_set_ssr_half_size(GLOBAL_GET("rendering/environment/screen_space_reflection/half_size"));
 	RS::SubSurfaceScatteringQuality sss_quality = RS::SubSurfaceScatteringQuality(int(GLOBAL_GET("rendering/environment/subsurface_scattering/subsurface_scattering_quality")));
 	RS::get_singleton()->sub_surface_scattering_set_quality(sss_quality);
 	float sss_scale = GLOBAL_GET("rendering/environment/subsurface_scattering/subsurface_scattering_scale");
@@ -525,6 +530,7 @@ void EditorNode::_update_from_settings() {
 	RS::get_singleton()->decals_set_filter(RS::DecalFilter(int(GLOBAL_GET("rendering/textures/decals/filter"))));
 	RS::get_singleton()->light_projectors_set_filter(RS::LightProjectorFilter(int(GLOBAL_GET("rendering/textures/light_projectors/filter"))));
 	RS::get_singleton()->lightmaps_set_bicubic_filter(GLOBAL_GET("rendering/lightmapping/lightmap_gi/use_bicubic_filter"));
+	RS::get_singleton()->material_set_use_debanding(GLOBAL_GET("rendering/anti_aliasing/quality/use_debanding"));
 
 	SceneTree *tree = get_tree();
 	tree->set_debug_collisions_color(GLOBAL_GET("debug/shapes/collision/shape_color"));
@@ -578,7 +584,7 @@ void EditorNode::_update_translations() {
 	if (main->is_enabled()) {
 		// Check for the exact locale.
 		// `get_potential_translations("zh_CN")` could return translations for "zh".
-		if (main->get_loaded_locales().has(main->get_locale_override())) {
+		if (main->has_translation_for_locale(main->get_locale_override())) {
 			// The set of translation resources for the current locale changed.
 			const HashSet<Ref<Translation>> translations = main->get_potential_translations(main->get_locale_override());
 			if (translations != tracked_translations) {
@@ -680,12 +686,12 @@ void EditorNode::_update_theme(bool p_skip_creation) {
 		help_menu->set_item_icon(help_menu->get_item_index(HELP_ABOUT), _get_editor_theme_native_menu_icon(SNAME("Godot"), global_menu, dark_mode));
 		help_menu->set_item_icon(help_menu->get_item_index(HELP_SUPPORT_GODOT_DEVELOPMENT), _get_editor_theme_native_menu_icon(SNAME("Heart"), global_menu, dark_mode));
 
-		if (EditorDebuggerNode::get_singleton()->is_visible()) {
-			bottom_panel->add_theme_style_override(SceneStringName(panel), theme->get_stylebox(SNAME("BottomPanelDebuggerOverride"), EditorStringName(EditorStyles)));
-		}
-
 		_update_renderer_color();
 	}
+
+	Ref<Texture2D> thumbnail_icon = gui_base->get_theme_icon(SNAME("file_thumbnail"), SNAME("FileDialog"));
+	default_thumbnail.instantiate();
+	default_thumbnail->set_image(thumbnail_icon->get_image());
 
 	editor_dock_manager->update_tab_styles();
 	editor_dock_manager->update_docks_menu();
@@ -930,6 +936,12 @@ void EditorNode::_notification(int p_what) {
 			CanvasItemEditor::ThemePreviewMode theme_preview_mode = (CanvasItemEditor::ThemePreviewMode)(int)EditorSettings::get_singleton()->get_project_metadata("2d_editor", "theme_preview", CanvasItemEditor::THEME_PREVIEW_PROJECT);
 			update_preview_themes(theme_preview_mode);
 
+			// Remember the selected locale to preview node translations.
+			const String preview_locale = EditorSettings::get_singleton()->get_project_metadata("editor_metadata", "preview_locale", String());
+			if (!preview_locale.is_empty() && TranslationServer::get_singleton()->get_loaded_locales().has(preview_locale)) {
+				set_preview_locale(preview_locale);
+			}
+
 			if (Engine::get_singleton()->is_recovery_mode_hint()) {
 				EditorToaster::get_singleton()->popup_str(TTR("Recovery Mode is enabled. Editor functionality has been restricted."), EditorToaster::SEVERITY_WARNING);
 			}
@@ -975,6 +987,7 @@ void EditorNode::_notification(int p_what) {
 		case EditorSettings::NOTIFICATION_EDITOR_SETTINGS_CHANGED: {
 			if (EditorSettings::get_singleton()->check_changed_settings_in_group("filesystem/file_dialog")) {
 				FileDialog::set_default_show_hidden_files(EDITOR_GET("filesystem/file_dialog/show_hidden_files"));
+				FileDialog::set_default_display_mode(EDITOR_GET("filesystem/file_dialog/display_mode"));
 				EditorFileDialog::set_default_show_hidden_files(EDITOR_GET("filesystem/file_dialog/show_hidden_files"));
 				EditorFileDialog::set_default_display_mode((EditorFileDialog::DisplayMode)EDITOR_GET("filesystem/file_dialog/display_mode").operator int());
 			}
@@ -1006,6 +1019,11 @@ void EditorNode::_notification(int p_what) {
 				_update_theme();
 				_build_icon_type_cache();
 				recent_scenes->reset_size();
+			}
+
+			if (EditorSettings::get_singleton()->check_changed_settings_in_group("interface/editor")) {
+				theme->set_constant("dragging_unfold_wait_msec", "Tree", (float)EDITOR_GET("interface/editor/dragging_hover_wait_seconds") * 1000);
+				theme->set_constant("hover_switch_wait_msec", "TabBar", (float)EDITOR_GET("interface/editor/dragging_hover_wait_seconds") * 1000);
 			}
 
 			if (EditorSettings::get_singleton()->check_changed_settings_in_group("interface/editor/dock_tab_style")) {
@@ -2665,7 +2683,7 @@ void EditorNode::push_node_item(Node *p_node) {
 void EditorNode::push_item(Object *p_object, const String &p_property, bool p_inspector_only) {
 	if (!p_object) {
 		InspectorDock::get_inspector_singleton()->edit(nullptr);
-		NodeDock::get_singleton()->set_node(nullptr);
+		NodeDock::get_singleton()->set_object(nullptr);
 		SceneTreeDock::get_singleton()->set_selected(nullptr);
 		InspectorDock::get_singleton()->update(nullptr);
 		hide_unused_editors();
@@ -2786,7 +2804,7 @@ void EditorNode::_edit_current(bool p_skip_foreign, bool p_skip_inspector_update
 	if (!current_obj) {
 		SceneTreeDock::get_singleton()->set_selected(nullptr);
 		InspectorDock::get_inspector_singleton()->edit(nullptr);
-		NodeDock::get_singleton()->set_node(nullptr);
+		NodeDock::get_singleton()->set_object(nullptr);
 		InspectorDock::get_singleton()->update(nullptr);
 		EditorDebuggerNode::get_singleton()->clear_remote_tree_selection();
 		hide_unused_editors();
@@ -2820,7 +2838,7 @@ void EditorNode::_edit_current(bool p_skip_foreign, bool p_skip_inspector_update
 		if (!p_skip_inspector_update) {
 			InspectorDock::get_inspector_singleton()->edit(current_res);
 			SceneTreeDock::get_singleton()->set_selected(nullptr);
-			NodeDock::get_singleton()->set_node(nullptr);
+			NodeDock::get_singleton()->set_object(current_res);
 			InspectorDock::get_singleton()->update(nullptr);
 			EditorDebuggerNode::get_singleton()->clear_remote_tree_selection();
 			ImportDock::get_singleton()->set_edit_path(current_res->get_path());
@@ -2850,7 +2868,7 @@ void EditorNode::_edit_current(bool p_skip_foreign, bool p_skip_inspector_update
 
 		InspectorDock::get_inspector_singleton()->edit(current_node);
 		if (current_node->is_inside_tree()) {
-			NodeDock::get_singleton()->set_node(current_node);
+			NodeDock::get_singleton()->set_object(current_node);
 			SceneTreeDock::get_singleton()->set_selected(current_node);
 			SceneTreeDock::get_singleton()->set_selection({ current_node });
 			InspectorDock::get_singleton()->update(current_node);
@@ -2862,7 +2880,7 @@ void EditorNode::_edit_current(bool p_skip_foreign, bool p_skip_inspector_update
 				}
 			}
 		} else {
-			NodeDock::get_singleton()->set_node(nullptr);
+			NodeDock::get_singleton()->set_object(nullptr);
 			SceneTreeDock::get_singleton()->set_selected(nullptr);
 			InspectorDock::get_singleton()->update(nullptr);
 		}
@@ -2910,7 +2928,7 @@ void EditorNode::_edit_current(bool p_skip_foreign, bool p_skip_inspector_update
 		}
 
 		InspectorDock::get_inspector_singleton()->edit(current_obj);
-		NodeDock::get_singleton()->set_node(nullptr);
+		NodeDock::get_singleton()->set_object(nullptr);
 		SceneTreeDock::get_singleton()->set_selected(selected_node);
 		SceneTreeDock::get_singleton()->set_selection(multi_nodes);
 		InspectorDock::get_singleton()->update(nullptr);
@@ -3524,7 +3542,7 @@ void EditorNode::_menu_option_confirm(int p_option, bool p_confirmed) {
 			about->popup_centered(Size2(780, 500) * EDSCALE);
 		} break;
 		case HELP_SUPPORT_GODOT_DEVELOPMENT: {
-			OS::get_singleton()->shell_open("https://fund.godotengine.org");
+			OS::get_singleton()->shell_open("https://fund.godotengine.org/?ref=help_menu");
 		} break;
 	}
 }
@@ -4060,6 +4078,7 @@ void EditorNode::set_addon_plugin_enabled(const String &p_addon, bool p_enabled,
 	Ref<Script> scr; // We need to save it for creating "ep" below.
 
 	// Only try to load the script if it has a name. Else, the plugin has no init script.
+	EditorPlugin *ep = nullptr;
 	if (script_path.length() > 0) {
 		script_path = addon_path.get_base_dir().path_join(script_path);
 		// We should not use the cached version on startup to prevent a script reload
@@ -4094,10 +4113,15 @@ void EditorNode::set_addon_plugin_enabled(const String &p_addon, bool p_enabled,
 			show_warning(vformat(TTR("Unable to load addon script from path: '%s'. Script is not in tool mode."), script_path));
 			return;
 		}
+
+		Object *obj = ClassDB::instantiate(scr->get_instance_base_type());
+		ep = Object::cast_to<EditorPlugin>(obj);
+		ERR_FAIL_NULL(ep);
+		ep->set_script(scr);
+	} else {
+		ep = memnew(EditorPlugin);
 	}
 
-	EditorPlugin *ep = memnew(EditorPlugin);
-	ep->set_script(scr);
 	ep->set_plugin_version(plugin_version);
 	addon_name_to_plugin[addon_path] = ep;
 	add_editor_plugin(ep, p_config_changed);
@@ -4193,8 +4217,17 @@ void EditorNode::set_preview_locale(const String &p_locale) {
 	// Texts set in the editor could be identifiers that should never be translated.
 	// So we need to disable translation entirely.
 	Ref<TranslationDomain> main_domain = TranslationServer::get_singleton()->get_main_domain();
-	main_domain->set_enabled(!p_locale.is_empty());
-	main_domain->set_locale_override(p_locale);
+	if (p_locale.is_empty()) {
+		// Disable preview. Use the fallback locale.
+		main_domain->set_enabled(false);
+		main_domain->set_locale_override(TranslationServer::get_singleton()->get_fallback_locale());
+	} else {
+		// Preview a specific locale.
+		main_domain->set_enabled(true);
+		main_domain->set_locale_override(p_locale);
+	}
+
+	EditorSettings::get_singleton()->set_project_metadata("editor_metadata", "preview_locale", p_locale);
 
 	_translation_resources_changed();
 }
@@ -5625,6 +5658,19 @@ Ref<Texture2D> EditorNode::_file_dialog_get_icon(const String &p_path) {
 	return singleton->icon_type_cache["Object"];
 }
 
+Ref<Texture2D> EditorNode::_file_dialog_get_thumbnail(const String &p_path) {
+	Ref<ImageTexture> texture = singleton->default_thumbnail->duplicate();
+	EditorResourcePreview::get_singleton()->queue_resource_preview(p_path, callable_mp_static(EditorNode::_file_dialog_thumbnail_callback).bind(texture));
+	return texture;
+}
+
+void EditorNode::_file_dialog_thumbnail_callback(const String &p_path, const Ref<Texture2D> &p_preview, const Ref<Texture2D> &p_small_preview, Ref<ImageTexture> p_texture) {
+	ERR_FAIL_COND(p_texture.is_null());
+	if (p_preview.is_valid()) {
+		p_texture->set_image(p_preview->get_image());
+	}
+}
+
 void EditorNode::_build_icon_type_cache() {
 	List<StringName> tl;
 	theme->get_icon_list(EditorStringName(EditorIcons), &tl);
@@ -6080,9 +6126,14 @@ void EditorNode::_update_layouts_menu() {
 	}
 
 	Vector<String> layouts = config->get_sections();
+	const String default_layout_name = TTR("Default");
 
 	for (const String &layout : layouts) {
-		if (layout == TTR("Default")) {
+		if (layout.contains_char('/')) {
+			continue;
+		}
+
+		if (layout == default_layout_name) {
 			editor_layouts->remove_item(editor_layouts->get_item_index(LAYOUT_DEFAULT));
 			overridden_default_layout = editor_layouts->get_item_count();
 		}
@@ -7103,6 +7154,13 @@ bool EditorNode::call_build() {
 	return builds_successful;
 }
 
+void EditorNode::call_run_scene(const String &p_scene, Vector<String> &r_args) {
+	for (int i = 0; i < editor_data.get_editor_plugin_count(); i++) {
+		EditorPlugin *plugin = editor_data.get_editor_plugin(i);
+		plugin->run_scene(p_scene, r_args);
+	}
+}
+
 void EditorNode::_inherit_imported(const String &p_action) {
 	open_imported->hide();
 	load_scene(open_import_request, true, true);
@@ -7610,7 +7668,10 @@ EditorNode::EditorNode() {
 	ProjectSettings::get_singleton()->connect("settings_changed", callable_mp(this, &EditorNode::_update_from_settings));
 	GDExtensionManager::get_singleton()->connect("extensions_reloaded", callable_mp(this, &EditorNode::_gdextensions_reloaded));
 
-	TranslationServer::get_singleton()->get_main_domain()->set_enabled(false);
+	Ref<TranslationDomain> domain = TranslationServer::get_singleton()->get_main_domain();
+	domain->set_enabled(false);
+	domain->set_locale_override(TranslationServer::get_singleton()->get_fallback_locale());
+
 	// Load settings.
 	if (!EditorSettings::get_singleton()) {
 		EditorSettings::create();
@@ -7680,6 +7741,8 @@ EditorNode::EditorNode() {
 		DisplayServer::get_singleton()->window_set_min_size(minimum_size);
 	}
 
+	FileDialog::set_default_show_hidden_files(EDITOR_GET("filesystem/file_dialog/show_hidden_files"));
+	FileDialog::set_default_display_mode(EDITOR_GET("filesystem/file_dialog/display_mode"));
 	EditorFileDialog::set_default_show_hidden_files(EDITOR_GET("filesystem/file_dialog/show_hidden_files"));
 	EditorFileDialog::set_default_display_mode((EditorFileDialog::DisplayMode)EDITOR_GET("filesystem/file_dialog/display_mode").operator int());
 
@@ -7817,7 +7880,8 @@ EditorNode::EditorNode() {
 	EditorContextMenuPluginManager::create();
 
 	// Used for previews.
-	FileDialog::get_icon_func = _file_dialog_get_icon;
+	FileDialog::set_get_icon_callback(callable_mp_static(_file_dialog_get_icon));
+	FileDialog::set_get_thumbnail_callback(callable_mp_static(_file_dialog_get_thumbnail));
 	FileDialog::register_func = _file_dialog_register;
 	FileDialog::unregister_func = _file_dialog_unregister;
 
@@ -7931,7 +7995,7 @@ EditorNode::EditorNode() {
 	center_split->set_name("DockVSplitCenter");
 	center_split->set_vertical(true);
 	center_split->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	center_split->set_collapsed(false);
+	center_split->set_collapsed(true);
 	center_vb->add_child(center_split);
 
 	right_hsplit = memnew(DockSplitContainer);
@@ -8404,36 +8468,26 @@ EditorNode::EditorNode() {
 	// Instantiate and place editor docks.
 
 	memnew(SceneTreeDock(scene_root, editor_selection, editor_data));
-	memnew(FileSystemDock);
-	memnew(InspectorDock(editor_data));
-	memnew(ImportDock);
-	memnew(NodeDock);
+	editor_dock_manager->add_dock(SceneTreeDock::get_singleton());
 
-	FileSystemDock *filesystem_dock = FileSystemDock::get_singleton();
+	memnew(ImportDock);
+	editor_dock_manager->add_dock(ImportDock::get_singleton());
+
+	FileSystemDock *filesystem_dock = memnew(FileSystemDock);
 	filesystem_dock->connect("inherit", callable_mp(this, &EditorNode::_inherit_request));
 	filesystem_dock->connect("instantiate", callable_mp(this, &EditorNode::_instantiate_request));
 	filesystem_dock->connect("display_mode_changed", callable_mp(this, &EditorNode::_save_editor_layout));
 	get_project_settings()->connect_filesystem_dock_signals(filesystem_dock);
+	editor_dock_manager->add_dock(filesystem_dock);
+
+	memnew(InspectorDock(editor_data));
+	editor_dock_manager->add_dock(InspectorDock::get_singleton());
+
+	memnew(NodeDock);
+	editor_dock_manager->add_dock(NodeDock::get_singleton());
 
 	history_dock = memnew(HistoryDock);
-
-	// Scene: Top left.
-	editor_dock_manager->add_dock(SceneTreeDock::get_singleton(), TTRC("Scene"), EditorDockManager::DOCK_SLOT_LEFT_UR, ED_SHORTCUT_AND_COMMAND("docks/open_scene", TTRC("Open Scene Dock")), "PackedScene");
-
-	// Import: Top left, behind Scene.
-	editor_dock_manager->add_dock(ImportDock::get_singleton(), TTRC("Import"), EditorDockManager::DOCK_SLOT_LEFT_UR, ED_SHORTCUT_AND_COMMAND("docks/open_import", TTRC("Open Import Dock")), "FileAccess");
-
-	// FileSystem: Bottom left.
-	editor_dock_manager->add_dock(FileSystemDock::get_singleton(), TTRC("FileSystem"), EditorDockManager::DOCK_SLOT_LEFT_BR, ED_SHORTCUT_AND_COMMAND("docks/open_filesystem", TTRC("Open FileSystem Dock"), KeyModifierMask::ALT | Key::F), "Folder");
-
-	// Inspector: Full height right.
-	editor_dock_manager->add_dock(InspectorDock::get_singleton(), TTRC("Inspector"), EditorDockManager::DOCK_SLOT_RIGHT_UL, ED_SHORTCUT_AND_COMMAND("docks/open_inspector", TTRC("Open Inspector Dock")), "AnimationTrackList");
-
-	// Node: Full height right, behind Inspector.
-	editor_dock_manager->add_dock(NodeDock::get_singleton(), TTRC("Node"), EditorDockManager::DOCK_SLOT_RIGHT_UL, ED_SHORTCUT_AND_COMMAND("docks/open_node", TTRC("Open Node Dock")), "Object");
-
-	// History: Full height right, behind Node.
-	editor_dock_manager->add_dock(history_dock, TTRC("History"), EditorDockManager::DOCK_SLOT_RIGHT_UL, ED_SHORTCUT_AND_COMMAND("docks/open_history", TTRC("Open History Dock")), "History");
+	editor_dock_manager->add_dock(history_dock);
 
 	// Add some offsets to left_r and main hsplits to make LEFT_R and RIGHT_L docks wider than minsize.
 	left_r_hsplit->set_split_offset(270 * EDSCALE);
@@ -8449,7 +8503,7 @@ EditorNode::EditorNode() {
 	default_layout->set_value(docks_section, "dock_5", "Inspector,Node,History");
 
 	int hsplits[] = { 0, 270, -270, 0 };
-	DEV_ASSERT((int)std::size(hsplits) == editor_dock_manager->get_hsplit_count());
+	DEV_ASSERT((int)std_size(hsplits) == editor_dock_manager->get_hsplit_count());
 	for (int i = 0; i < editor_dock_manager->get_hsplit_count(); i++) {
 		default_layout->set_value(docks_section, "dock_hsplit_" + itos(i + 1), hsplits[i]);
 	}
@@ -8919,7 +8973,6 @@ EditorNode::~EditorNode() {
 	GDExtensionEditorPlugins::editor_node_add_plugin = nullptr;
 	GDExtensionEditorPlugins::editor_node_remove_plugin = nullptr;
 
-	FileDialog::get_icon_func = nullptr;
 	FileDialog::register_func = nullptr;
 	FileDialog::unregister_func = nullptr;
 

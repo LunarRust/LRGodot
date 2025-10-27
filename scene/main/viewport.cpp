@@ -34,8 +34,6 @@
 #include "core/debugger/engine_debugger.h"
 #include "core/templates/pair.h"
 #include "core/templates/sort_array.h"
-#include "scene/2d/audio_listener_2d.h"
-#include "scene/2d/camera_2d.h"
 #include "scene/gui/control.h"
 #include "scene/gui/label.h"
 #include "scene/gui/popup.h"
@@ -47,8 +45,12 @@
 #include "scene/resources/mesh.h"
 #include "scene/resources/text_line.h"
 #include "scene/resources/world_2d.h"
-#include "servers/audio_server.h"
+#include "servers/audio/audio_server.h"
 #include "servers/rendering/rendering_server_globals.h"
+
+// 2D.
+#include "scene/2d/audio_listener_2d.h"
+#include "scene/2d/camera_2d.h"
 
 #ifndef _3D_DISABLED
 #include "scene/3d/audio_listener_3d.h"
@@ -203,7 +205,7 @@ void ViewportTexture::_setup_local_to_scene(const Node *p_loc_scene) {
 	ERR_FAIL_NULL(RenderingServer::get_singleton());
 	if (proxy_ph.is_valid()) {
 		RS::get_singleton()->texture_proxy_update(proxy, vp->texture_rid);
-		RS::get_singleton()->free(proxy_ph);
+		RS::get_singleton()->free_rid(proxy_ph);
 		proxy_ph = RID();
 	} else {
 		ERR_FAIL_COND(proxy.is_valid()); // Should be invalid.
@@ -233,10 +235,10 @@ ViewportTexture::~ViewportTexture() {
 	ERR_FAIL_NULL(RenderingServer::get_singleton());
 
 	if (proxy_ph.is_valid()) {
-		RS::get_singleton()->free(proxy_ph);
+		RS::get_singleton()->free_rid(proxy_ph);
 	}
 	if (proxy.is_valid()) {
-		RS::get_singleton()->free(proxy);
+		RS::get_singleton()->free_rid(proxy);
 	}
 }
 
@@ -270,17 +272,31 @@ void Viewport::_sub_window_update_order() {
 		return;
 	}
 
-	if (!gui.sub_windows[gui.sub_windows.size() - 1].window->get_flag(Window::FLAG_ALWAYS_ON_TOP)) {
-		int index = gui.sub_windows.size() - 1;
-
-		while (index > 0 && gui.sub_windows[index - 1].window->get_flag(Window::FLAG_ALWAYS_ON_TOP)) {
-			--index;
+	// Reorder 'always on top' windows.
+	int last_index = gui.sub_windows.size() - 1;
+	for (int index = last_index, insert_index = last_index; index >= 0; index--) {
+		SubWindow sw = gui.sub_windows[index];
+		Window *parent_window = sw.window->get_parent_visible_window();
+		bool parent_is_always_on_top = (parent_window != nullptr) && parent_window->get_flag(Window::FLAG_ALWAYS_ON_TOP);
+		if (sw.window->get_flag(Window::FLAG_ALWAYS_ON_TOP) || (parent_is_always_on_top && sw.window->is_exclusive())) {
+			if (index != insert_index) {
+				gui.sub_windows.remove_at(index);
+				gui.sub_windows.insert(insert_index, sw);
+			}
+			insert_index--;
 		}
+	}
 
-		if (index != (gui.sub_windows.size() - 1)) {
-			SubWindow sw = gui.sub_windows[gui.sub_windows.size() - 1];
-			gui.sub_windows.remove_at(gui.sub_windows.size() - 1);
-			gui.sub_windows.insert(index, sw);
+	// Reorder exclusive children.
+	for (int parent_index = 0; parent_index < gui.sub_windows.size(); parent_index++) {
+		Window *exclusive_child = gui.sub_windows[parent_index].window->get_exclusive_child();
+		if (exclusive_child != nullptr && exclusive_child->is_visible()) {
+			int child_index = _sub_window_find(exclusive_child);
+			if (child_index < parent_index) {
+				SubWindow sw = gui.sub_windows[child_index];
+				gui.sub_windows.remove_at(child_index);
+				gui.sub_windows.insert(parent_index, sw);
+			}
 		}
 	}
 
@@ -466,11 +482,11 @@ void Viewport::_sub_window_remove(Window *p_window) {
 		sw.window->_mouse_leave_viewport();
 		gui.subwindow_over = nullptr;
 	}
-	RS::get_singleton()->free(sw.canvas_item);
+	RS::get_singleton()->free_rid(sw.canvas_item);
 	gui.sub_windows.remove_at(index);
 
 	if (gui.sub_windows.is_empty()) {
-		RS::get_singleton()->free(subwindow_canvas);
+		RS::get_singleton()->free_rid(subwindow_canvas);
 		subwindow_canvas = RID();
 	}
 
@@ -532,7 +548,7 @@ void Viewport::_update_viewport_path() {
 }
 
 bool Viewport::_can_hide_focus_state() {
-	return Engine::get_singleton()->is_editor_hint() || !GLOBAL_GET_CACHED(bool, "gui/common/always_show_focus_state");
+	return Engine::get_singleton()->is_editor_hint() || GLOBAL_GET_CACHED(int, "gui/common/show_focus_state_on_pointer_event") < 2;
 }
 
 void Viewport::_on_settings_changed() {
@@ -633,15 +649,15 @@ void Viewport::_notification(int p_what) {
 			RenderingServer::get_singleton()->viewport_remove_canvas(viewport, current_canvas);
 #ifndef PHYSICS_2D_DISABLED
 			if (contact_2d_debug.is_valid()) {
-				RenderingServer::get_singleton()->free(contact_2d_debug);
+				RenderingServer::get_singleton()->free_rid(contact_2d_debug);
 				contact_2d_debug = RID();
 			}
 #endif // PHYSICS_2D_DISABLED
 
 #ifndef PHYSICS_3D_DISABLED
 			if (contact_3d_debug_multimesh.is_valid()) {
-				RenderingServer::get_singleton()->free(contact_3d_debug_multimesh);
-				RenderingServer::get_singleton()->free(contact_3d_debug_instance);
+				RenderingServer::get_singleton()->free_rid(contact_3d_debug_multimesh);
+				RenderingServer::get_singleton()->free_rid(contact_3d_debug_instance);
 				contact_3d_debug_instance = RID();
 				contact_3d_debug_multimesh = RID();
 			}
@@ -1116,7 +1132,7 @@ bool Viewport::_set_size(const Size2i &p_size, const Size2 &p_size_2d_override, 
 	stretch_transform = stretch_transform_new;
 	font_oversampling = new_font_oversampling;
 
-#ifndef _3D_DISABLED
+#ifndef XR_DISABLED
 	if (!use_xr) {
 #endif
 
@@ -1126,7 +1142,7 @@ bool Viewport::_set_size(const Size2i &p_size, const Size2 &p_size_2d_override, 
 			RS::get_singleton()->viewport_set_size(viewport, 0, 0);
 		}
 
-#ifndef _3D_DISABLED
+#ifndef XR_DISABLED
 	} // if (!use_xr)
 #endif
 
@@ -1204,35 +1220,6 @@ void Viewport::canvas_parent_mark_dirty(Node *p_node) {
 		callable_mp(this, &Viewport::_process_dirty_canvas_parent_orders).call_deferred();
 	}
 }
-
-#if DEBUG_ENABLED
-void Viewport::enable_camera_2d_override(bool p_enable) {
-	ERR_MAIN_THREAD_GUARD;
-
-	if (p_enable) {
-		camera_2d_override.enable(this, camera_2d);
-	} else {
-		camera_2d_override.disable(camera_2d);
-	}
-}
-
-bool Viewport::is_camera_2d_override_enabled() const {
-	ERR_READ_THREAD_GUARD_V(false);
-	return camera_2d_override.is_enabled();
-}
-
-Camera2D *Viewport::get_overridden_camera_2d() const {
-	ERR_READ_THREAD_GUARD_V(nullptr);
-	ERR_FAIL_COND_V(!camera_2d_override.is_enabled(), nullptr);
-	return camera_2d_override.get_overridden_camera();
-}
-
-Camera2D *Viewport::get_override_camera_2d() const {
-	ERR_READ_THREAD_GUARD_V(nullptr);
-	ERR_FAIL_COND_V(!camera_2d_override.is_enabled(), nullptr);
-	return camera_2d_override.is_enabled() ? get_camera_2d() : nullptr;
-}
-#endif // DEBUG_ENABLED
 
 void Viewport::set_canvas_transform(const Transform2D &p_transform) {
 	ERR_MAIN_THREAD_GUARD;
@@ -4400,6 +4387,35 @@ void Viewport::assign_next_enabled_camera_2d(const StringName &p_camera_group) {
 	}
 }
 
+#if DEBUG_ENABLED
+void Viewport::enable_camera_2d_override(bool p_enable) {
+	ERR_MAIN_THREAD_GUARD;
+
+	if (p_enable) {
+		camera_2d_override.enable(this, camera_2d);
+	} else {
+		camera_2d_override.disable(camera_2d);
+	}
+}
+
+bool Viewport::is_camera_2d_override_enabled() const {
+	ERR_READ_THREAD_GUARD_V(false);
+	return camera_2d_override.is_enabled();
+}
+
+Camera2D *Viewport::get_overridden_camera_2d() const {
+	ERR_READ_THREAD_GUARD_V(nullptr);
+	ERR_FAIL_COND_V(!camera_2d_override.is_enabled(), nullptr);
+	return camera_2d_override.get_overridden_camera();
+}
+
+Camera2D *Viewport::get_override_camera_2d() const {
+	ERR_READ_THREAD_GUARD_V(nullptr);
+	ERR_FAIL_COND_V(!camera_2d_override.is_enabled(), nullptr);
+	return camera_2d_override.is_enabled() ? get_camera_2d() : nullptr;
+}
+#endif // DEBUG_ENABLED
+
 #ifndef _3D_DISABLED
 AudioListener3D *Viewport::get_audio_listener_3d() const {
 	ERR_READ_THREAD_GUARD_V(nullptr);
@@ -4766,6 +4782,7 @@ void Viewport::_propagate_exit_world_3d(Node *p_node) {
 	}
 }
 
+#ifndef XR_DISABLED
 void Viewport::set_use_xr(bool p_use_xr) {
 	ERR_MAIN_THREAD_GUARD;
 	if (use_xr != p_use_xr) {
@@ -4792,6 +4809,7 @@ bool Viewport::is_using_xr() {
 	ERR_READ_THREAD_GUARD_V(false);
 	return use_xr;
 }
+#endif // XR_DISABLED
 
 void Viewport::set_scaling_3d_mode(Scaling3DMode p_scaling_3d_mode) {
 	ERR_MAIN_THREAD_GUARD;
@@ -5058,8 +5076,10 @@ void Viewport::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_disable_3d", "disable"), &Viewport::set_disable_3d);
 	ClassDB::bind_method(D_METHOD("is_3d_disabled"), &Viewport::is_3d_disabled);
 
+#ifndef XR_DISABLED
 	ClassDB::bind_method(D_METHOD("set_use_xr", "use"), &Viewport::set_use_xr);
 	ClassDB::bind_method(D_METHOD("is_using_xr"), &Viewport::is_using_xr);
+#endif // XR_DISABLED
 
 	ClassDB::bind_method(D_METHOD("set_scaling_3d_mode", "scaling_3d_mode"), &Viewport::set_scaling_3d_mode);
 	ClassDB::bind_method(D_METHOD("get_scaling_3d_mode"), &Viewport::get_scaling_3d_mode);
@@ -5086,7 +5106,9 @@ void Viewport::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_vrs_texture"), &Viewport::get_vrs_texture);
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "disable_3d"), "set_disable_3d", "is_3d_disabled");
+#ifndef XR_DISABLED
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_xr"), "set_use_xr", "is_using_xr");
+#endif // XR_DISABLED
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "own_world_3d"), "set_use_own_world_3d", "is_using_own_world_3d");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "world_3d", PROPERTY_HINT_RESOURCE_TYPE, "World3D"), "set_world_3d", "get_world_3d");
 #endif // _3D_DISABLED
@@ -5338,7 +5360,7 @@ Viewport::~Viewport() {
 		world_2d->remove_viewport(this);
 	}
 	ERR_FAIL_NULL(RenderingServer::get_singleton());
-	RenderingServer::get_singleton()->free(viewport);
+	RenderingServer::get_singleton()->free_rid(viewport);
 }
 
 /////////////////////////////////
@@ -5603,5 +5625,7 @@ T *Viewport::CameraOverride<T>::get_overridden_camera() const {
 // Explicit template instantiation to allow template definitions inside cpp file
 // and prevent instantiation using other than the desired camera types.
 template class Viewport::CameraOverride<Camera2D>;
+#ifndef _3D_DISABLED
 template class Viewport::CameraOverride<Camera3D>;
+#endif // _3D_DISABLED
 #endif // DEBUG_ENABLED

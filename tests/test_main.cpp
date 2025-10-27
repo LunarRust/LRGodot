@@ -60,6 +60,7 @@
 #include "tests/core/io/test_stream_peer.h"
 #include "tests/core/io/test_stream_peer_buffer.h"
 #include "tests/core/io/test_stream_peer_gzip.h"
+#include "tests/core/io/test_stream_peer_tcp.h"
 #include "tests/core/io/test_tcp_server.h"
 #include "tests/core/io/test_udp_server.h"
 #include "tests/core/io/test_uds_server.h"
@@ -209,19 +210,19 @@
 #include "scene/theme/theme_db.h"
 
 #ifndef NAVIGATION_2D_DISABLED
-#include "servers/navigation_server_2d.h"
+#include "servers/navigation_2d/navigation_server_2d.h"
 #endif // NAVIGATION_2D_DISABLED
 #ifndef NAVIGATION_3D_DISABLED
-#include "servers/navigation_server_3d.h"
+#include "servers/navigation_3d/navigation_server_3d.h"
 #endif // NAVIGATION_3D_DISABLED
 
 #ifndef PHYSICS_2D_DISABLED
-#include "servers/physics_server_2d.h"
-#include "servers/physics_server_2d_dummy.h"
+#include "servers/physics_2d/physics_server_2d.h"
+#include "servers/physics_2d/physics_server_2d_dummy.h"
 #endif // PHYSICS_2D_DISABLED
 #ifndef PHYSICS_3D_DISABLED
-#include "servers/physics_server_3d.h"
-#include "servers/physics_server_3d_dummy.h"
+#include "servers/physics_3d/physics_server_3d.h"
+#include "servers/physics_3d/physics_server_3d_dummy.h"
 #endif // PHYSICS_3D_DISABLED
 
 #include "servers/rendering/rendering_server_default.h"

@@ -3102,7 +3102,13 @@ void GDScriptAnalyzer::reduce_binary_op(GDScriptParser::BinaryOpNode *p_binary_o
 	}
 
 #ifdef DEBUG_ENABLED
-	if (p_binary_op->variant_op == Variant::OP_DIVIDE && left_type.builtin_type == Variant::INT && right_type.builtin_type == Variant::INT) {
+	if (p_binary_op->variant_op == Variant::OP_DIVIDE &&
+			(left_type.builtin_type == Variant::INT ||
+					left_type.builtin_type == Variant::VECTOR2I ||
+					left_type.builtin_type == Variant::VECTOR3I ||
+					left_type.builtin_type == Variant::VECTOR4I) &&
+			(right_type.builtin_type == Variant::INT ||
+					right_type.builtin_type == left_type.builtin_type)) {
 		parser->push_warning(p_binary_op, GDScriptWarning::INTEGER_DIVISION);
 	}
 #endif // DEBUG_ENABLED
@@ -3827,7 +3833,7 @@ void GDScriptAnalyzer::reduce_cast(GDScriptParser::CastNode *p_cast) {
 }
 
 void GDScriptAnalyzer::reduce_dictionary(GDScriptParser::DictionaryNode *p_dictionary) {
-	HashMap<Variant, GDScriptParser::ExpressionNode *, VariantHasher, StringLikeVariantComparator> elements;
+	HashMap<Variant, GDScriptParser::ExpressionNode *, HashMapHasherDefault, StringLikeVariantComparator> elements;
 
 	for (int i = 0; i < p_dictionary->elements.size(); i++) {
 		const GDScriptParser::DictionaryNode::Pair &element = p_dictionary->elements[i];

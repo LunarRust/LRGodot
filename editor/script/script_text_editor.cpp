@@ -184,6 +184,11 @@ void ScriptTextEditor::enable_editor(Control *p_shortcut_context) {
 
 	_validate_script();
 
+	if (pending_state != Variant()) {
+		code_editor->set_edit_state(pending_state);
+		pending_state = Variant();
+	}
+
 	if (p_shortcut_context) {
 		for (int i = 0; i < edit_hb->get_child_count(); ++i) {
 			Control *c = cast_to<Control>(edit_hb->get_child(i));
@@ -485,7 +490,11 @@ Array ScriptTextEditor::_inline_object_parse(const String &p_text) {
 				params.push_back(s_param.to_float());
 			}
 			if (valid_floats && params.size() == 3) {
-				params.push_back(1.0);
+				if (fn_name == ".from_rgba8") {
+					params.push_back(255);
+				} else {
+					params.push_back(1.0);
+				}
 			}
 			if (valid_floats && params.size() == 4) {
 				has_added_color = true;
@@ -704,11 +713,19 @@ bool ScriptTextEditor::is_unsaved() {
 }
 
 Variant ScriptTextEditor::get_edit_state() {
+	if (pending_state != Variant()) {
+		return pending_state;
+	}
 	return code_editor->get_edit_state();
 }
 
 void ScriptTextEditor::set_edit_state(const Variant &p_state) {
-	code_editor->set_edit_state(p_state);
+	if (editor_enabled) {
+		code_editor->set_edit_state(p_state);
+	} else {
+		// The editor is not fully initialized, so the state can't be loaded properly.
+		pending_state = p_state;
+	}
 
 	Dictionary state = p_state;
 	if (state.has("syntax_highlighter")) {
@@ -3147,7 +3164,8 @@ void ScriptTextEditor::register_editor() {
 	ED_SHORTCUT("script_text_editor/goto_function", TTRC("Go to Function..."), KeyModifierMask::ALT | KeyModifierMask::CTRL | Key::F);
 	ED_SHORTCUT_OVERRIDE("script_text_editor/goto_function", "macos", KeyModifierMask::CTRL | KeyModifierMask::META | Key::J);
 
-	ED_SHORTCUT("script_text_editor/goto_line", TTRC("Go to Line..."), KeyModifierMask::CMD_OR_CTRL | Key::L);
+	ED_SHORTCUT("script_text_editor/goto_line", TTRC("Go to Line..."), KeyModifierMask::CMD_OR_CTRL | Key::G);
+	ED_SHORTCUT_OVERRIDE("script_text_editor/goto_line", "macos", KeyModifierMask::CMD_OR_CTRL | Key::L);
 	ED_SHORTCUT("script_text_editor/goto_symbol", TTRC("Lookup Symbol"));
 
 	ED_SHORTCUT("script_text_editor/toggle_breakpoint", TTRC("Toggle Breakpoint"), Key::F9);

@@ -32,6 +32,7 @@
 
 #import "metal_utils.h"
 
+#import "core/io/file_access.h"
 #import "core/io/marshalls.h"
 #import "servers/rendering/rendering_device.h"
 
@@ -83,7 +84,33 @@ const MetalDeviceProfile *MetalDeviceProfile::get_profile(MetalDeviceProfile::Pl
 		res.features.mslVersionMinor = 1;
 	}
 
+	res.update_options();
+
 	return &profiles.insert(key, res)->value;
+}
+
+void MetalDeviceProfile::update_options() {
+	options.argument_buffers_tier = features.argument_buffers_tier;
+
+	if (OS::get_singleton()->has_environment(U"GODOT_MTL_ARGUMENT_BUFFERS_TIER")) {
+		uint64_t tier = OS::get_singleton()->get_environment(U"GODOT_MTL_ARGUMENT_BUFFERS_TIER").to_int();
+		switch (tier) {
+			case 1:
+				// All devices support tier 1 argument buffers.
+				options.argument_buffers_tier = ArgumentBuffersTier::Tier1;
+				break;
+			case 2:
+				if (features.argument_buffers_tier >= ArgumentBuffersTier::Tier2) {
+					options.argument_buffers_tier = ArgumentBuffersTier::Tier2;
+				} else {
+					WARN_PRINT("Current device does not support tier 2 argument buffers, leaving as default.");
+				}
+				break;
+			default:
+				WARN_PRINT(vformat("Invalid value for GODOT_MTL_ARGUMENT_BUFFER_TIER: %d. Falling back to device default.", tier));
+				break;
+		}
+	}
 }
 
 void RenderingShaderContainerMetal::_initialize_toolchain_properties() {
@@ -252,7 +279,7 @@ Error RenderingShaderContainerMetal::compile_metal_source(const char *p_source, 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 
-bool RenderingShaderContainerMetal::_set_code_from_spirv(const Vector<RenderingDeviceCommons::ShaderStageSPIRVData> &p_spirv) {
+bool RenderingShaderContainerMetal::_set_code_from_spirv(Span<ReflectedShaderStage> p_spirv) {
 	using namespace spirv_cross;
 	using spirv_cross::CompilerMSL;
 	using spirv_cross::Resource;
@@ -312,12 +339,9 @@ bool RenderingShaderContainerMetal::_set_code_from_spirv(const Vector<RenderingD
 		msl_options.ios_support_base_vertex_instance = true;
 	}
 
-	bool disable_argument_buffers = false;
-	if (String v = OS::get_singleton()->get_environment("GODOT_MTL_DISABLE_ARGUMENT_BUFFERS"); v == "1") {
-		disable_argument_buffers = true;
-	}
+	bool argument_buffers_allowed = get_shader_reflection().has_dynamic_buffers == false;
 
-	if (device_profile->features.argument_buffers_tier >= MetalDeviceProfile::ArgumentBuffersTier::Tier2 && !disable_argument_buffers) {
+	if (device_profile->options.argument_buffers_tier >= MetalDeviceProfile::ArgumentBuffersTier::Tier2 && argument_buffers_allowed) {
 		msl_options.argument_buffers_tier = CompilerMSL::Options::ArgumentBuffersTier::Tier2;
 		msl_options.argument_buffers = true;
 		mtl_reflection_data.set_uses_argument_buffers(true);
@@ -353,12 +377,11 @@ bool RenderingShaderContainerMetal::_set_code_from_spirv(const Vector<RenderingD
 
 	for (uint32_t i = 0; i < p_spirv.size(); i++) {
 		StageData &stage_data = mtl_shaders.write[i];
-		RD::ShaderStageSPIRVData const &v = p_spirv[i];
+		const ReflectedShaderStage &v = p_spirv[i];
 		RD::ShaderStage stage = v.shader_stage;
 		char const *stage_name = RD::SHADER_STAGE_NAMES[stage];
-		uint32_t const *const ir = reinterpret_cast<uint32_t const *const>(v.spirv.ptr());
-		size_t word_count = v.spirv.size() / sizeof(uint32_t);
-		Parser parser(ir, word_count);
+		Span<uint32_t> spirv = v.spirv();
+		Parser parser(spirv.ptr(), spirv.size());
 		try {
 			parser.parse();
 		} catch (CompilerError &e) {

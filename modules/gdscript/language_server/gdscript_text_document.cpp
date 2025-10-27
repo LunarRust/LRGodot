@@ -36,7 +36,7 @@
 
 #include "editor/script/script_text_editor.h"
 #include "editor/settings/editor_settings.h"
-#include "servers/display_server.h"
+#include "servers/display/display_server.h"
 
 void GDScriptTextDocument::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("didOpen"), &GDScriptTextDocument::didOpen);
@@ -496,8 +496,8 @@ Array GDScriptTextDocument::find_symbols(const LSP::TextDocumentPositionParams &
 			if (file_checker->file_exists(path)) {
 				arr.push_back(location.to_json());
 			}
-			r_list.push_back(symbol);
 		}
+		r_list.push_back(symbol);
 	} else if (GDScriptLanguageProtocol::get_singleton()->is_smart_resolve_enabled()) {
 		List<const LSP::DocumentSymbol *> list;
 		GDScriptLanguageProtocol::get_singleton()->get_workspace()->resolve_related_symbols(p_location, list);

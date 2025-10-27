@@ -30,6 +30,8 @@
 
 #pragma once
 
+#include "core/input/input_event.h"
+#include "core/io/resource.h"
 #include "core/string/node_path.h"
 #include "core/templates/iterable.h"
 #include "core/variant/typed_array.h"
@@ -132,6 +134,9 @@ public:
 #ifdef DEBUG_ENABLED
 	static SafeNumeric<uint64_t> total_node_count;
 #endif
+	enum {
+		UNIQUE_SCENE_ID_UNASSIGNED = 0
+	};
 
 	void _update_process(bool p_enable, bool p_for_children);
 
@@ -193,7 +198,7 @@ private:
 		Node *parent = nullptr;
 		Node *owner = nullptr;
 		HashMap<StringName, Node *> children;
-		mutable bool children_cache_dirty = true;
+		mutable bool children_cache_dirty = false;
 		mutable LocalVector<Node *> children_cache;
 		HashMap<StringName, Node *> owned_unique_nodes;
 		bool unique_name_in_owner = false;
@@ -207,9 +212,6 @@ private:
 		StringName name;
 		SceneTree *tree = nullptr;
 
-#ifdef TOOLS_ENABLED
-		NodePath import_path; // Path used when imported, used by scene editors to keep tracking.
-#endif
 		String editor_description;
 
 		Viewport *viewport = nullptr;
@@ -284,11 +286,11 @@ private:
 		mutable bool is_translation_domain_inherited : 1;
 		mutable bool is_translation_domain_dirty : 1;
 
+		int32_t unique_scene_id = UNIQUE_SCENE_ID_UNASSIGNED;
+
 		mutable NodePath *path_cache = nullptr;
 
 	} data;
-
-	Ref<MultiplayerAPI> multiplayer;
 
 	String _get_tree_string_pretty(const String &p_prefix, bool p_last);
 	String _get_tree_string(const Node *p_node);
@@ -405,6 +407,7 @@ protected:
 	void _call_unhandled_key_input(const Ref<InputEvent> &p_event);
 
 	void _validate_property(PropertyInfo &p_property) const;
+	virtual String _to_string() override;
 
 	Variant _get_node_rpc_config_bind() const {
 		return get_node_rpc_config().duplicate(true);
@@ -532,6 +535,9 @@ public:
 	Node *get_parent() const;
 	Node *find_parent(const String &p_pattern) const;
 
+	void set_unique_scene_id(int32_t p_unique_id);
+	int32_t get_unique_scene_id() const;
+
 	Window *get_window() const;
 	Window *get_non_popup_window() const;
 	Window *get_last_exclusive_window() const;
@@ -625,8 +631,6 @@ public:
 	bool is_part_of_edited_scene() const { return false; }
 #endif
 	void get_storable_properties(HashSet<StringName> &r_storable_properties) const;
-
-	virtual String to_string() override;
 
 	/* NOTIFICATIONS */
 
@@ -770,9 +774,6 @@ public:
 
 	//hacks for speed
 	static void init_node_hrcr();
-
-	void set_import_path(const NodePath &p_import_path); //path used when imported, used by scene editors to keep tracking
-	NodePath get_import_path() const;
 
 	bool is_owned_by_parent() const;
 

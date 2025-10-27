@@ -71,7 +71,7 @@
 #include "scene/resources/style_box_flat.h"
 #include "scene/resources/visual_shader_nodes.h"
 #include "scene/resources/visual_shader_particle_nodes.h"
-#include "servers/display_server.h"
+#include "servers/display/display_server.h"
 #include "servers/rendering/shader_preprocessor.h"
 #include "servers/rendering/shader_types.h"
 
@@ -92,7 +92,7 @@ static FloatConstantDef float_constant_defs[] = {
 	{ "Sqrt2", Math::SQRT2, TTRC("Sqrt2 constant (1.414214). Square root of 2.") }
 };
 
-constexpr int MAX_FLOAT_CONST_DEFS = std::size(float_constant_defs);
+constexpr int MAX_FLOAT_CONST_DEFS = std_size(float_constant_defs);
 
 ///////////////////
 
@@ -6461,8 +6461,8 @@ void VisualShaderEditor::_show_shader_preview() {
 	}
 }
 
-void VisualShaderEditor::set_toggle_list_control(Control *p_control) {
-	toggle_files_list = p_control;
+void VisualShaderEditor::set_toggle_list_control(Control *p_toggle_list_control) {
+	toggle_files_list = p_toggle_list_control;
 }
 
 void VisualShaderEditor::_toggle_files_pressed() {
