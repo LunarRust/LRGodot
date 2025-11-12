@@ -249,8 +249,8 @@ public:
 typedef ScriptEditorBase *(*CreateScriptEditorFunc)(const Ref<Resource> &p_resource);
 
 class EditorScriptCodeCompletionCache;
+class FindInFilesContainer;
 class FindInFilesDialog;
-class FindInFilesPanel;
 
 class ScriptEditor : public PanelContainer {
 	GDCLASS(ScriptEditor, PanelContainer);
@@ -367,7 +367,7 @@ class ScriptEditor : public PanelContainer {
 	Button *script_forward = nullptr;
 
 	FindInFilesDialog *find_in_files_dialog = nullptr;
-	FindInFilesPanel *find_in_files = nullptr;
+	FindInFilesContainer *find_in_files = nullptr;
 	Button *find_in_files_button = nullptr;
 
 	WindowWrapper *window_wrapper = nullptr;
@@ -451,7 +451,6 @@ class ScriptEditor : public PanelContainer {
 	void _scene_saved_callback(const String &p_path);
 	void _mark_built_in_scripts_as_saved(const String &p_parent_path);
 
-	bool open_textfile_after_create = true;
 	bool trim_trailing_whitespace_on_save;
 	bool trim_final_newlines_on_save;
 	bool convert_indent_on_save;
