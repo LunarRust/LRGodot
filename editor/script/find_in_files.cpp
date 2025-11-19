@@ -35,6 +35,7 @@
 #include "core/os/os.h"
 #include "editor/editor_node.h"
 #include "editor/editor_string_names.h"
+#include "editor/gui/editor_bottom_panel.h"
 #include "editor/themes/editor_scale.h"
 #include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
@@ -864,15 +865,7 @@ void FindInFilesPanel::stop_search() {
 void FindInFilesPanel::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_THEME_CHANGED: {
-			_search_text_label->add_theme_font_override(SceneStringName(font), get_theme_font(SNAME("source"), EditorStringName(EditorFonts)));
-			_search_text_label->add_theme_font_size_override(SceneStringName(font_size), get_theme_font_size(SNAME("source_size"), EditorStringName(EditorFonts)));
-			_results_display->add_theme_font_override(SceneStringName(font), get_theme_font(SNAME("source"), EditorStringName(EditorFonts)));
-			_results_display->add_theme_font_size_override(SceneStringName(font_size), get_theme_font_size(SNAME("source_size"), EditorStringName(EditorFonts)));
-
-			// Rebuild search tree.
-			if (!_finder->get_search_text().is_empty()) {
-				start_search();
-			}
+			_on_theme_changed();
 		} break;
 		case NOTIFICATION_TRANSLATION_CHANGED: {
 			update_matches_text();
@@ -961,6 +954,38 @@ void FindInFilesPanel::_on_result_found(const String &fpath, int line_number, in
 		item->add_button(1, remove_texture, FIND_BUTTON_REMOVE, false, TTR("Remove result"));
 	} else {
 		item->add_button(0, remove_texture, FIND_BUTTON_REMOVE, false, TTR("Remove result"));
+	}
+}
+
+void FindInFilesPanel::_on_theme_changed() {
+	_results_display->add_theme_font_override(SceneStringName(font), get_theme_font(SNAME("source"), EditorStringName(EditorFonts)));
+	_results_display->add_theme_font_size_override(SceneStringName(font_size), get_theme_font_size(SNAME("source_size"), EditorStringName(EditorFonts)));
+
+	Color file_item_color = _results_display->get_theme_color(SceneStringName(font_color)) * Color(1, 1, 1, 0.67);
+	Ref<Texture2D> remove_texture = get_editor_theme_icon(SNAME("Close"));
+	Ref<Texture2D> replace_texture = get_editor_theme_icon(SNAME("ReplaceText"));
+
+	TreeItem *file_item = _results_display->get_root()->get_first_child();
+	while (file_item) {
+		file_item->set_custom_color(0, file_item_color);
+		if (_with_replace) {
+			file_item->set_button(0, file_item->get_button_by_id(0, FIND_BUTTON_REPLACE), replace_texture);
+		}
+		file_item->set_button(0, file_item->get_button_by_id(0, FIND_BUTTON_REMOVE), remove_texture);
+
+		TreeItem *result_item = file_item->get_first_child();
+		while (result_item) {
+			if (_with_replace) {
+				result_item->set_button(1, result_item->get_button_by_id(1, FIND_BUTTON_REPLACE), replace_texture);
+				result_item->set_button(1, result_item->get_button_by_id(1, FIND_BUTTON_REMOVE), remove_texture);
+			} else {
+				result_item->set_button(0, result_item->get_button_by_id(0, FIND_BUTTON_REMOVE), remove_texture);
+			}
+
+			result_item = result_item->get_next();
+		}
+
+		file_item = file_item->get_next();
 	}
 }
 
@@ -1267,14 +1292,6 @@ void FindInFilesPanel::_bind_methods() {
 //-----------------------------------------------------------------------------
 
 FindInFilesContainer::FindInFilesContainer() {
-	const Ref<StyleBox> bottom_panel_style = EditorNode::get_singleton()->get_editor_theme()->get_stylebox(SNAME("BottomPanel"), EditorStringName(EditorStyles));
-	if (bottom_panel_style.is_valid()) {
-		add_theme_constant_override("margin_top", -bottom_panel_style->get_margin(SIDE_TOP));
-		add_theme_constant_override("margin_left", -bottom_panel_style->get_margin(SIDE_LEFT));
-		add_theme_constant_override("margin_right", -bottom_panel_style->get_margin(SIDE_RIGHT));
-		add_theme_constant_override("margin_bottom", -bottom_panel_style->get_margin(SIDE_BOTTOM));
-	}
-
 	_tabs = memnew(TabContainer);
 	_tabs->set_tabs_visible(false);
 	add_child(_tabs);
@@ -1292,6 +1309,8 @@ FindInFilesContainer::FindInFilesContainer() {
 	_tabs_context_menu->add_item(TTRC("Close Tabs to the Right"), PANEL_CLOSE_RIGHT);
 	_tabs_context_menu->add_item(TTRC("Close All Tabs"), PANEL_CLOSE_ALL);
 	_tabs_context_menu->connect(SceneStringName(id_pressed), callable_mp(this, &FindInFilesContainer::_bar_menu_option));
+
+	EditorNode::get_bottom_panel()->connect(SceneStringName(theme_changed), callable_mp(this, &FindInFilesContainer::_on_theme_changed));
 }
 
 FindInFilesPanel *FindInFilesContainer::_create_new_panel() {
@@ -1348,30 +1367,15 @@ void FindInFilesContainer::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("close_button_clicked"));
 }
 
-void FindInFilesContainer::_notification(int p_what) {
-	switch (p_what) {
-		case NOTIFICATION_THEME_CHANGED: {
-			const Ref<StyleBox> bottom_panel_style = EditorNode::get_singleton()->get_editor_theme()->get_stylebox(SNAME("BottomPanel"), EditorStringName(EditorStyles));
-			if (bottom_panel_style.is_valid()) {
-				const int margin_top = -bottom_panel_style->get_margin(SIDE_TOP);
-				const int margin_left = -bottom_panel_style->get_margin(SIDE_LEFT);
-				const int margin_right = -bottom_panel_style->get_margin(SIDE_RIGHT);
-				const int margin_bottom = -bottom_panel_style->get_margin(SIDE_BOTTOM);
-
-				if (get_theme_constant("margin_top") != margin_top) {
-					add_theme_constant_override("margin_top", margin_top);
-				}
-				if (get_theme_constant("margin_left") != margin_left) {
-					add_theme_constant_override("margin_left", margin_left);
-				}
-				if (get_theme_constant("margin_right") != margin_right) {
-					add_theme_constant_override("margin_right", margin_right);
-				}
-				if (get_theme_constant("margin_bottom") != margin_bottom) {
-					add_theme_constant_override("margin_bottom", margin_bottom);
-				}
-			}
-		} break;
+void FindInFilesContainer::_on_theme_changed() {
+	const Ref<StyleBox> bottom_panel_style = EditorNode::get_singleton()->get_editor_theme()->get_stylebox(SNAME("BottomPanel"), EditorStringName(EditorStyles));
+	if (bottom_panel_style.is_valid()) {
+		begin_bulk_theme_override();
+		add_theme_constant_override("margin_top", -bottom_panel_style->get_margin(SIDE_TOP));
+		add_theme_constant_override("margin_left", -bottom_panel_style->get_margin(SIDE_LEFT));
+		add_theme_constant_override("margin_right", -bottom_panel_style->get_margin(SIDE_RIGHT));
+		add_theme_constant_override("margin_bottom", -bottom_panel_style->get_margin(SIDE_BOTTOM));
+		end_bulk_theme_override();
 	}
 }
 
