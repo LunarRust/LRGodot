@@ -1248,6 +1248,16 @@ void ProjectManager::shortcut_input(const Ref<InputEvent> &p_ev) {
 					keycode_handled = false;
 				}
 			} break;
+			case Key::A: {
+				if (k->is_command_or_control_pressed()) {
+					if (k->is_shift_pressed()) {
+						project_list->deselect_all_visible_projects();
+					} else {
+						project_list->select_all_visible_projects();
+					}
+					_update_project_buttons();
+				}
+			} break;
 			default: {
 				keycode_handled = false;
 			} break;
@@ -1356,11 +1366,11 @@ ProjectManager::ProjectManager() {
 				EditorScale::set_scale(EDITOR_GET("interface/editor/custom_display_scale"));
 				break;
 		}
-		EditorFileDialog::get_icon_func = &ProjectManager::_file_dialog_get_icon;
-		EditorFileDialog::get_thumbnail_func = &ProjectManager::_file_dialog_get_thumbnail;
+		FileDialog::set_get_icon_callback(callable_mp_static(ProjectManager::_file_dialog_get_icon));
+		FileDialog::set_get_thumbnail_callback(callable_mp_static(ProjectManager::_file_dialog_get_thumbnail));
 
-		EditorFileDialog::set_default_show_hidden_files(EDITOR_GET("filesystem/file_dialog/show_hidden_files"));
-		EditorFileDialog::set_default_display_mode((EditorFileDialog::DisplayMode)EDITOR_GET("filesystem/file_dialog/display_mode").operator int());
+		FileDialog::set_default_show_hidden_files(EDITOR_GET("filesystem/file_dialog/show_hidden_files"));
+		FileDialog::set_default_display_mode((FileDialog::DisplayMode)EDITOR_GET("filesystem/file_dialog/display_mode").operator int());
 
 		int swap_cancel_ok = EDITOR_GET("interface/editor/accept_dialog_cancel_ok_buttons");
 		if (swap_cancel_ok != 0) { // 0 is auto, set in register_scene based on DisplayServer.
@@ -1725,7 +1735,6 @@ ProjectManager::ProjectManager() {
 		quick_settings_dialog->connect("restart_required", callable_mp(this, &ProjectManager::_restart_confirmed));
 
 		scan_dir = memnew(EditorFileDialog);
-		scan_dir->set_previews_enabled(false);
 		scan_dir->set_access(EditorFileDialog::ACCESS_FILESYSTEM);
 		scan_dir->set_file_mode(EditorFileDialog::FILE_MODE_OPEN_DIR);
 		scan_dir->set_title(TTRC("Select a Folder to Scan")); // Must be after mode or it's overridden.

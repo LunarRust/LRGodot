@@ -43,21 +43,22 @@
 #include "editor/debugger/editor_debugger_node.h"
 #include "editor/debugger/script_editor_debugger.h"
 #include "editor/doc/editor_help_search.h"
+#include "editor/docks/editor_dock_manager.h"
 #include "editor/docks/filesystem_dock.h"
 #include "editor/docks/inspector_dock.h"
-#include "editor/docks/node_dock.h"
+#include "editor/docks/signals_dock.h"
 #include "editor/editor_interface.h"
 #include "editor/editor_main_screen.h"
 #include "editor/editor_node.h"
 #include "editor/editor_string_names.h"
 #include "editor/file_system/editor_paths.h"
 #include "editor/gui/code_editor.h"
-#include "editor/gui/editor_bottom_panel.h"
 #include "editor/gui/editor_file_dialog.h"
 #include "editor/gui/editor_toaster.h"
 #include "editor/gui/window_wrapper.h"
 #include "editor/inspector/editor_context_menu_plugin.h"
 #include "editor/run/editor_run_bar.h"
+#include "editor/scene/editor_scene_tabs.h"
 #include "editor/script/editor_script.h"
 #include "editor/script/find_in_files.h"
 #include "editor/settings/editor_command_palette.h"
@@ -1864,7 +1865,53 @@ void ScriptEditor::_notification(int p_what) {
 
 			EditorSettings::get_singleton()->connect("settings_changed", callable_mp(this, &ScriptEditor::_editor_settings_changed));
 			EditorFileSystem::get_singleton()->connect("filesystem_changed", callable_mp(this, &ScriptEditor::_filesystem_changed));
+#ifdef ANDROID_ENABLED
+			set_process(true);
+#endif
 		} break;
+
+#ifdef ANDROID_ENABLED
+		case NOTIFICATION_VISIBILITY_CHANGED: {
+			set_process(is_visible_in_tree());
+		} break;
+
+		case NOTIFICATION_PROCESS: {
+			const int kb_height = DisplayServer::get_singleton()->virtual_keyboard_get_height();
+			if (kb_height == last_kb_height) {
+				break;
+			}
+
+			last_kb_height = kb_height;
+			float spacer_height = 0.0f;
+			const float status_bar_height = 28 * EDSCALE; // Magic number
+			const bool kb_visible = kb_height > 0;
+
+			if (kb_visible) {
+				if (ScriptEditorBase *editor = _get_current_editor()) {
+					if (CodeTextEditor *code_editor = editor->get_code_editor()) {
+						if (CodeEdit *text_editor = code_editor->get_text_editor()) {
+							if (!text_editor->has_focus()) {
+								break;
+							}
+							text_editor->adjust_viewport_to_caret();
+						}
+					}
+				}
+
+				const float control_bottom = get_global_position().y + get_size().y;
+				const float extra_bottom = get_viewport_rect().size.y - control_bottom;
+				spacer_height = float(kb_height) - extra_bottom - status_bar_height;
+
+				if (spacer_height < 0.0f) {
+					spacer_height = 0.0f;
+				}
+			}
+
+			virtual_keyboard_spacer->set_custom_minimum_size(Size2(0, spacer_height));
+			EditorSceneTabs::get_singleton()->set_visible(!kb_height);
+			menu_hb->set_visible(!kb_visible);
+		} break;
+#endif
 
 		case NOTIFICATION_EXIT_TREE: {
 			EditorRunBar::get_singleton()->disconnect("stop_pressed", callable_mp(this, &ScriptEditor::_editor_stop));
@@ -2975,7 +3022,7 @@ void ScriptEditor::_add_callback(Object *p_obj, const String &p_function, const 
 		break;
 	}
 
-	// Move back to the previously edited node to reselect it in the Inspector and the NodeDock.
+	// Move back to the previously edited node to reselect it in the Inspector and the SignalsDock.
 	// We assume that the previous item is the node on which the callbacks were added.
 	EditorNode::get_singleton()->edit_previous_item();
 }
@@ -3962,7 +4009,7 @@ void ScriptEditor::register_create_script_editor_function(CreateScriptEditorFunc
 }
 
 void ScriptEditor::_script_changed() {
-	NodeDock::get_singleton()->update_lists();
+	SignalsDock::get_singleton()->update_lists();
 }
 
 void ScriptEditor::_on_replace_in_files_requested(const String &text) {
@@ -4099,9 +4146,7 @@ void ScriptEditor::_start_find_in_files(bool with_replace) {
 	panel->set_replace_text(find_in_files_dialog->get_replace_text());
 	panel->start_search();
 
-	EditorNode::get_bottom_panel()->move_item_to_end(find_in_files);
-	find_in_files_button->show();
-	EditorNode::get_bottom_panel()->make_item_visible(find_in_files);
+	find_in_files->make_visible();
 }
 
 void ScriptEditor::_on_find_in_files_modified_files(const PackedStringArray &paths) {
@@ -4121,11 +4166,6 @@ void ScriptEditor::_update_code_editor_zoom_factor(CodeTextEditor *p_code_text_e
 	if (p_code_text_editor && p_code_text_editor->is_visible_in_tree() && zoom_factor != p_code_text_editor->get_zoom_factor()) {
 		p_code_text_editor->set_zoom_factor(zoom_factor);
 	}
-}
-
-void ScriptEditor::_on_find_in_files_close_button_clicked() {
-	EditorNode::get_bottom_panel()->hide_bottom_panel();
-	find_in_files_button->hide();
 }
 
 void ScriptEditor::_window_changed(bool p_visible) {
@@ -4186,6 +4226,12 @@ ScriptEditor::ScriptEditor(WindowWrapper *p_wrapper) {
 	script_split = memnew(HSplitContainer);
 	main_container->add_child(script_split);
 	script_split->set_v_size_flags(SIZE_EXPAND_FILL);
+
+#ifdef ANDROID_ENABLED
+	virtual_keyboard_spacer = memnew(Control);
+	virtual_keyboard_spacer->set_h_size_flags(SIZE_EXPAND_FILL);
+	main_container->add_child(virtual_keyboard_spacer);
+#endif
 
 	list_split = memnew(VSplitContainer);
 	script_split->add_child(list_split);
@@ -4496,14 +4542,12 @@ ScriptEditor::ScriptEditor(WindowWrapper *p_wrapper) {
 	find_in_files_dialog->connect(FindInFilesDialog::SIGNAL_FIND_REQUESTED, callable_mp(this, &ScriptEditor::_start_find_in_files).bind(false));
 	find_in_files_dialog->connect(FindInFilesDialog::SIGNAL_REPLACE_REQUESTED, callable_mp(this, &ScriptEditor::_start_find_in_files).bind(true));
 	add_child(find_in_files_dialog);
+
 	find_in_files = memnew(FindInFilesContainer);
-	find_in_files_button = EditorNode::get_bottom_panel()->add_item(TTRC("Search Results"), find_in_files, ED_SHORTCUT_AND_COMMAND("bottom_panels/toggle_search_results_bottom_panel", TTRC("Toggle Search Results Bottom Panel")));
-	find_in_files->set_custom_minimum_size(Size2(0, 200) * EDSCALE);
+	EditorDockManager::get_singleton()->add_dock(find_in_files);
+	find_in_files->close();
 	find_in_files->connect("result_selected", callable_mp(this, &ScriptEditor::_on_find_in_files_result_selected));
 	find_in_files->connect("files_modified", callable_mp(this, &ScriptEditor::_on_find_in_files_modified_files));
-	find_in_files->connect("close_button_clicked", callable_mp(this, &ScriptEditor::_on_find_in_files_close_button_clicked));
-	find_in_files->hide();
-	find_in_files_button->hide();
 
 	history_pos = -1;
 
