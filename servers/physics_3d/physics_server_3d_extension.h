@@ -514,6 +514,10 @@ public:
 	EXBIND3(cone_twist_joint_set_param, RID, ConeTwistJointParam, real_t)
 	EXBIND2RC(real_t, cone_twist_joint_get_param, RID, ConeTwistJointParam)
 
+	EXBIND5(joint_make_distance, RID, RID, const Vector3 &, RID, const Vector3 &)
+
+	EXBIND3(distance_joint_set_param, RID, DistanceJointParam, real_t)
+
 	EXBIND5(joint_make_generic_6dof, RID, RID, const Transform3D &, RID, const Transform3D &)
 
 	EXBIND4(generic_6dof_joint_set_param, RID, Vector3::Axis, G6DOFJointAxisParam, real_t)

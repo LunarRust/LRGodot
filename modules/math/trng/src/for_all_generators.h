@@ -1,0 +1,69 @@
+#define RNG TRNG::ParkMiller
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::LCG32
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::LCG64
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::MRG2
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::MRG3
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::MRG4
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::MRG5
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::YARNLCG64
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::YARN2
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::YARN3
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::YARN4
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::YARN5
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::CLCG2
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::CLCG3
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::CLCG4
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::EINV
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+#define RNG TRNG::EINVLCG64
+  {FOR_ALL_GENERATORS};
+#undef RNG
+
+

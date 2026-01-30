@@ -33,6 +33,7 @@
 #include "core/math/geometry_2d.h"
 #include "core/math/geometry_3d.h"
 #include "editor/editor_node.h"
+#include "scene/3d/physics/joints/distance_joint_3d.h"
 #include "editor/editor_string_names.h"
 #include "editor/scene/3d/node_3d_editor_plugin.h"
 #include "editor/settings/editor_settings.h"
@@ -275,6 +276,8 @@ void EditorNode3DGizmo::_update_bvh() {
 			bvh_node_id,
 			aabb);
 }
+
+
 
 void EditorNode3DGizmo::add_lines(const Vector<Vector3> &p_lines, const Ref<Material> &p_material, bool p_billboard, const Color &p_modulate) {
 	add_vertices(p_lines, p_material, Mesh::PRIMITIVE_LINES, p_billboard, p_modulate);
