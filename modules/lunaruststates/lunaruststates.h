@@ -8,7 +8,6 @@
 class LunarustStates : public RefCounted {
 	GDCLASS(LunarustStates, RefCounted);
 	
-	int player_mode;
 	Signal player_mode_changed;
 
 
@@ -21,13 +20,16 @@ public:
 		psycho
 	};
 
+	PlayerModes player_mode;
+
+
 protected:
 	static void _bind_methods();
 
 public:
 	
 	void ChangePlayerMode(PlayerModes mode);
-	int get_player_mode();
+	PlayerModes get_player_mode();
 
 	LunarustStates();
 };
