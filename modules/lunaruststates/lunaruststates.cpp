@@ -18,10 +18,10 @@ void LunarustStates::ChangePlayerMode(PlayerModes mode) {
 	player_mode = mode;
 	emit_signal("player_mode_changed", player_mode);
 }
-int LunarustStates::get_player_mode() {
+LunarustStates::PlayerModes LunarustStates::get_player_mode() {
 	return player_mode;
 }
 
 LunarustStates::LunarustStates() {
-	player_mode = 0;
+	player_mode = PlayerModes::fps;
 }
