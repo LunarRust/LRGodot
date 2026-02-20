@@ -3845,6 +3845,11 @@ void EditorInspector::update_tree() {
 		return;
 	}
 
+	if (!is_visible_in_tree()) {
+		update_tree_pending = true;
+		return;
+	}
+
 	bool root_inspector_was_following_focus = get_root_inspector()->is_following_focus();
 	if (root_inspector_was_following_focus) {
 		// Temporarily disable focus following on the root inspector to avoid jumping while the inspector is updating.
@@ -3938,17 +3943,14 @@ void EditorInspector::update_tree() {
 	bool sub_inspectors_enabled = EDITOR_GET("interface/inspector/open_resources_in_current_inspector");
 
 	if (!valid_plugins.is_empty()) {
-		// Show early to avoid sizing problems.
-		begin_vbox->show();
-
 		for (Ref<EditorInspectorPlugin> &ped : valid_plugins) {
 			ped->parse_begin(object);
 			_parse_added_editors(begin_vbox, nullptr, ped);
 		}
 
-		// Hide it again if no editors were added to the beginning.
-		if (begin_vbox->get_child_count() == 0) {
-			begin_vbox->hide();
+		// Show if any of the editors were added to the beginning.
+		if (begin_vbox->get_child_count() > 0) {
+			begin_vbox->show();
 		}
 	}
 
@@ -5914,8 +5916,6 @@ void EditorInspector::_bind_methods() {
 }
 
 EditorInspector::EditorInspector() {
-	object = nullptr;
-
 	base_vbox = memnew(VBoxContainer);
 	base_vbox->set_theme_type_variation(SNAME("EditorInspectorContainer"));
 	base_vbox->set_h_size_flags(SIZE_EXPAND_FILL);

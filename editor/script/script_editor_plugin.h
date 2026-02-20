@@ -40,6 +40,7 @@
 class CodeTextEditor;
 class EditorFileDialog;
 class EditorHelpSearch;
+class FilterLineEdit;
 class FindReplaceBar;
 class HSplitContainer;
 class ItemList;
@@ -55,13 +56,12 @@ class ScriptEditorBase;
 class ScriptEditorQuickOpen : public ConfirmationDialog {
 	GDCLASS(ScriptEditorQuickOpen, ConfirmationDialog);
 
-	LineEdit *search_box = nullptr;
+	FilterLineEdit *search_box = nullptr;
 	Tree *search_options = nullptr;
 	String function;
 
 	void _update_search();
 
-	void _sbox_input(const Ref<InputEvent> &p_event);
 	Vector<String> functions;
 
 	void _confirmed();
@@ -393,7 +393,6 @@ class ScriptEditor : public PanelContainer {
 
 	void _window_changed(bool p_visible);
 
-	static void _open_script_request(const String &p_path);
 	void _close_builtin_scripts_from_scene(const String &p_scene);
 
 	static ScriptEditor *script_editor;
@@ -424,6 +423,7 @@ public:
 	Vector<String> _get_breakpoints();
 	void get_breakpoints(List<String> *p_breakpoints);
 
+	void reload_open_files();
 	PackedStringArray get_unsaved_scripts() const;
 	void save_current_script();
 	void save_all_scripts();

@@ -42,6 +42,7 @@
 #include "core/version.h"
 #include "editor/debugger/editor_debugger_node.h"
 #include "editor/debugger/script_editor_debugger.h"
+#include "editor/doc/editor_help.h"
 #include "editor/doc/editor_help_search.h"
 #include "editor/docks/editor_dock_manager.h"
 #include "editor/docks/filesystem_dock.h"
@@ -55,11 +56,11 @@
 #include "editor/gui/code_editor.h"
 #include "editor/gui/editor_file_dialog.h"
 #include "editor/gui/editor_toaster.h"
+#include "editor/gui/filter_line_edit.h"
 #include "editor/gui/window_wrapper.h"
 #include "editor/inspector/editor_context_menu_plugin.h"
 #include "editor/run/editor_run_bar.h"
 #include "editor/scene/editor_scene_tabs.h"
-#include "editor/script/editor_script.h"
 #include "editor/script/find_in_files.h"
 #include "editor/script/script_text_editor.h"
 #include "editor/script/syntax_highlighters.h"
@@ -91,17 +92,6 @@ void ScriptEditorQuickOpen::popup_dialog(const Vector<String> &p_functions, bool
 
 void ScriptEditorQuickOpen::_text_changed(const String &p_newtext) {
 	_update_search();
-}
-
-void ScriptEditorQuickOpen::_sbox_input(const Ref<InputEvent> &p_event) {
-	// Redirect navigational key events to the tree.
-	Ref<InputEventKey> key = p_event;
-	if (key.is_valid()) {
-		if (key->is_action("ui_up", true) || key->is_action("ui_down", true) || key->is_action("ui_page_up") || key->is_action("ui_page_down")) {
-			search_options->gui_input(key);
-			search_box->accept_event();
-		}
-	}
 }
 
 void ScriptEditorQuickOpen::_update_search() {
@@ -137,12 +127,6 @@ void ScriptEditorQuickOpen::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
 			connect(SceneStringName(confirmed), callable_mp(this, &ScriptEditorQuickOpen::_confirmed));
-
-			search_box->set_clear_button_enabled(true);
-			[[fallthrough]];
-		}
-		case NOTIFICATION_VISIBILITY_CHANGED: {
-			search_box->set_right_icon(search_options->get_editor_theme_icon(SNAME("Search")));
 		} break;
 
 		case NOTIFICATION_EXIT_TREE: {
@@ -156,23 +140,26 @@ void ScriptEditorQuickOpen::_bind_methods() {
 }
 
 ScriptEditorQuickOpen::ScriptEditorQuickOpen() {
-	VBoxContainer *vbc = memnew(VBoxContainer);
-	add_child(vbc);
-	search_box = memnew(LineEdit);
-	vbc->add_margin_child(TTRC("Search:"), search_box);
-	search_box->connect(SceneStringName(text_changed), callable_mp(this, &ScriptEditorQuickOpen::_text_changed));
-	search_box->connect(SceneStringName(gui_input), callable_mp(this, &ScriptEditorQuickOpen::_sbox_input));
-	search_options = memnew(Tree);
-	vbc->add_margin_child(TTRC("Matches:"), search_options, true);
 	set_ok_button_text(TTRC("Open"));
 	get_ok_button()->set_disabled(true);
-	register_text_enter(search_box);
 	set_hide_on_ok(false);
-	search_options->connect("item_activated", callable_mp(this, &ScriptEditorQuickOpen::_confirmed));
+
+	VBoxContainer *vbc = memnew(VBoxContainer);
+	add_child(vbc);
+
+	search_box = memnew(FilterLineEdit);
+	vbc->add_margin_child(TTRC("Search:"), search_box);
+	search_box->connect(SceneStringName(text_changed), callable_mp(this, &ScriptEditorQuickOpen::_text_changed));
+	register_text_enter(search_box);
+
+	search_options = memnew(Tree);
+	search_box->set_forward_control(search_options);
 	search_options->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	search_options->set_hide_root(true);
 	search_options->set_hide_folding(true);
 	search_options->add_theme_constant_override("draw_guides", 1);
+	vbc->add_margin_child(TTRC("Matches:"), search_options, true);
+	search_options->connect("item_activated", callable_mp(this, &ScriptEditorQuickOpen::_confirmed));
 }
 
 /////////////////////////////////
@@ -2361,6 +2348,11 @@ bool ScriptEditor::edit(const Ref<Resource> &p_resource, int p_line, int p_col, 
 	return true;
 }
 
+void ScriptEditor::reload_open_files() {
+	_test_script_times_on_disk();
+	_update_modified_scripts_for_external_editor();
+}
+
 PackedStringArray ScriptEditor::get_unsaved_scripts() const {
 	PackedStringArray unsaved_list;
 
@@ -3395,10 +3387,9 @@ void ScriptEditor::update_docs_from_script(const Ref<Script> &p_script) {
 }
 
 void ScriptEditor::_update_selected_editor_menu() {
-	if (TextEditorBase *current_editor = Object::cast_to<TextEditorBase>(_get_current_editor())) {
-		for (Control *editor_menu : editor_menus) {
-			editor_menu->set_visible(current_editor && editor_menu == current_editor->get_edit_menu());
-		}
+	TextEditorBase *current_editor = Object::cast_to<TextEditorBase>(_get_current_editor());
+	for (Control *editor_menu : editor_menus) {
+		editor_menu->set_visible(current_editor && editor_menu == current_editor->get_edit_menu());
 	}
 
 	PopupMenu *search_popup = script_search_menu->get_popup();
@@ -3571,27 +3562,6 @@ void ScriptEditor::_calculate_script_name_button_ratio() {
 
 void ScriptEditor::_help_search(const String &p_text) {
 	help_search_dialog->popup_dialog(p_text);
-}
-
-void ScriptEditor::_open_script_request(const String &p_path) {
-	Ref<Script> scr = ResourceLoader::load(p_path);
-	if (scr.is_valid()) {
-		script_editor->edit(scr, false);
-		return;
-	}
-
-	Ref<JSON> json = ResourceLoader::load(p_path);
-	if (json.is_valid()) {
-		script_editor->edit(json, false);
-		return;
-	}
-
-	Error err;
-	Ref<TextFile> text_file = script_editor->_load_text_file(p_path, &err);
-	if (text_file.is_valid()) {
-		script_editor->edit(text_file, false);
-		return;
-	}
 }
 
 void ScriptEditor::register_syntax_highlighter(const Ref<EditorSyntaxHighlighter> &p_syntax_highlighter) {
@@ -3777,6 +3747,7 @@ void ScriptEditor::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_current_script"), &ScriptEditor::_get_current_script);
 	ClassDB::bind_method(D_METHOD("get_open_scripts"), &ScriptEditor::_get_open_scripts);
 	ClassDB::bind_method(D_METHOD("open_script_create_dialog", "base_name", "base_path"), &ScriptEditor::open_script_create_dialog);
+	ClassDB::bind_method(D_METHOD("reload_open_files"), &ScriptEditor::reload_open_files);
 
 	ClassDB::bind_method(D_METHOD("goto_help", "topic"), &ScriptEditor::goto_help);
 	ClassDB::bind_method(D_METHOD("update_docs_from_script", "script"), &ScriptEditor::update_docs_from_script);
@@ -4154,8 +4125,6 @@ ScriptEditor::ScriptEditor(WindowWrapper *p_wrapper) {
 	trim_trailing_whitespace_on_save = EDITOR_GET("text_editor/behavior/files/trim_trailing_whitespace_on_save");
 	trim_final_newlines_on_save = EDITOR_GET("text_editor/behavior/files/trim_final_newlines_on_save");
 	convert_indent_on_save = EDITOR_GET("text_editor/behavior/files/convert_indent_on_save");
-
-	ScriptServer::edit_request_func = _open_script_request;
 
 	Ref<EditorJSONSyntaxHighlighter> json_syntax_highlighter;
 	json_syntax_highlighter.instantiate();

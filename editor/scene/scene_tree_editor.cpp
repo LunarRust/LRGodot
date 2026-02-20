@@ -40,11 +40,14 @@
 #include "editor/editor_string_names.h"
 #include "editor/editor_undo_redo_manager.h"
 #include "editor/file_system/editor_file_system.h"
+#include "editor/gui/filter_line_edit.h"
 #include "editor/scene/canvas_item_editor_plugin.h"
 #include "editor/script/script_editor_plugin.h"
 #include "editor/settings/editor_settings.h"
 #include "editor/themes/editor_scale.h"
 #include "scene/2d/node_2d.h"
+#include "scene/gui/check_box.h"
+#include "scene/gui/check_button.h"
 #include "scene/gui/flow_container.h"
 #include "scene/gui/label.h"
 #include "scene/gui/texture_rect.h"
@@ -343,7 +346,7 @@ void SceneTreeEditor::_update_node_subtree(Node *p_node, TreeItem *p_parent, boo
 
 	_update_node(p_node, item, part_of_subscene);
 	I->value.dirty = false;
-	I->value.can_process = p_node->can_process();
+	I->value.can_process = is_scene_tree_dock && p_node->can_process();
 
 	// Force update all our children if we are new or if we were forced to update.
 	bool force_update_children = p_force || is_new;
@@ -467,7 +470,7 @@ void SceneTreeEditor::_update_node(Node *p_node, TreeItem *p_item, bool p_part_o
 		p_item->set_text(0, node_name);
 		p_item->set_selectable(0, marked_selectable);
 		_set_item_custom_color(p_item, get_theme_color(SNAME("accent_color"), EditorStringName(Editor)));
-	} else if (!p_node->can_process()) {
+	} else if (is_scene_tree_dock && !p_node->can_process()) {
 		_set_item_custom_color(p_item, get_theme_color(SNAME("font_disabled_color"), EditorStringName(Editor)));
 	} else if (!marked_selectable && !marked_children_selectable) {
 		Node *node = p_node;
@@ -2338,7 +2341,6 @@ void SceneTreeDialog::_notification(int p_what) {
 }
 
 void SceneTreeDialog::_update_valid_type_icons() {
-	filter->set_right_icon(get_editor_theme_icon(SNAME("Search")));
 	for (TextureRect *trect : valid_type_icons) {
 		trect->set_custom_minimum_size(Vector2(get_theme_constant(SNAME("class_icon_size"), EditorStringName(Editor)), 0));
 		trect->set_texture(trect->get_meta("icon"));
@@ -2365,21 +2367,14 @@ void SceneTreeDialog::_filter_changed(const String &p_filter) {
 	tree->set_filter(p_filter);
 }
 
-void SceneTreeDialog::_on_filter_gui_input(const Ref<InputEvent> &p_event) {
-	// Redirect navigational key events to the tree.
-	Ref<InputEventKey> key = p_event;
-	if (key.is_valid()) {
-		if (key->is_action("ui_up", true) || key->is_action("ui_down", true) || key->is_action("ui_page_up") || key->is_action("ui_page_down")) {
-			tree->get_scene_tree()->gui_input(key);
-			filter->accept_event();
-		}
-	}
-}
-
 void SceneTreeDialog::_bind_methods() {
 	ClassDB::bind_method("_cancel", &SceneTreeDialog::_cancel);
 
 	ADD_SIGNAL(MethodInfo("selected", PropertyInfo(Variant::NODE_PATH, "path")));
+}
+
+LineEdit *SceneTreeDialog::get_filter_line_edit() {
+	return filter;
 }
 
 SceneTreeDialog::SceneTreeDialog() {
@@ -2390,13 +2385,11 @@ SceneTreeDialog::SceneTreeDialog() {
 	HBoxContainer *filter_hbc = memnew(HBoxContainer);
 	content->add_child(filter_hbc);
 
-	filter = memnew(LineEdit);
+	filter = memnew(FilterLineEdit);
 	filter->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	filter->set_placeholder(TTRC("Filter Nodes"));
-	filter->set_clear_button_enabled(true);
 	filter->add_theme_constant_override("minimum_character_width", 0);
 	filter->connect(SceneStringName(text_changed), callable_mp(this, &SceneTreeDialog::_filter_changed));
-	filter->connect(SceneStringName(gui_input), callable_mp(this, &SceneTreeDialog::_on_filter_gui_input));
 
 	register_text_enter(filter);
 
@@ -2416,6 +2409,7 @@ SceneTreeDialog::SceneTreeDialog() {
 	content->add_child(mc);
 
 	tree = memnew(SceneTreeEditor(false, false, true));
+	filter->set_forward_control(tree->get_scene_tree());
 	tree->set_update_when_invisible(false);
 	tree->get_scene_tree()->set_scroll_hint_mode(Tree::SCROLL_HINT_MODE_BOTH);
 	tree->get_scene_tree()->connect("item_activated", callable_mp(this, &SceneTreeDialog::_select));

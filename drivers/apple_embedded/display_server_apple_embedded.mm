@@ -40,7 +40,9 @@
 #import "tts_apple_embedded.h"
 
 #include "core/config/project_settings.h"
+#include "core/input/input.h"
 #include "core/io/file_access_pack.h"
+#include "servers/display/native_menu.h"
 
 #import <GameController/GameController.h>
 
@@ -96,7 +98,7 @@ DisplayServerAppleEmbedded::DisplayServerAppleEmbedded(const String &p_rendering
 	if (rendering_driver == "metal") {
 		if (@available(iOS 14.0, *)) {
 			layer = [GDTAppDelegateService.viewController.godotView initializeRenderingForDriver:@"metal"];
-			wpd.metal.layer = (CAMetalLayer *)layer;
+			wpd.metal.layer = (__bridge CA::MetalLayer *)layer;
 			rendering_context = memnew(RenderingContextDriverMetal);
 		} else {
 			OS::get_singleton()->alert("Metal is only supported on iOS 14.0 and later.");
