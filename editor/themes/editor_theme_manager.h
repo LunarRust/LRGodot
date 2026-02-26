@@ -57,8 +57,8 @@ public:
 		String preset;
 		String spacing_preset;
 
-		Color base_color;
-		Color accent_color;
+		Color base_color; //= Color(0.23529412, 0.23529412, 0.23529412, 1);
+		Color accent_color;//= Color(0.90588236, 0.28235295, 0.3372549, 1);
 		float contrast = 1.0;
 		float icon_saturation = 1.0;
 
