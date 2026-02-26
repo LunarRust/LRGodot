@@ -46,8 +46,8 @@ void EditorColorMap::create() {
 	// This can be a basis for proper palette validation later.
 
 	// Convert:               FROM       TO
-	add_conversion_color_pair("#478cbf", "#478cbf"); // Godot Blue
-	add_conversion_color_pair("#414042", "#414042"); // Godot Gray
+	add_conversion_color_pair("#e74856", "#e74856"); // Godot Blue, Now Lunarust Red
+	add_conversion_color_pair("#3c3c3c", "#3c3c3c"); // Godot Gray, Now Lunarust Gray
 
 	add_conversion_color_pair("#ffffff", "#414141"); // Pure white
 	add_conversion_color_pair("#fefefe", "#fefefe"); // Forced light color
