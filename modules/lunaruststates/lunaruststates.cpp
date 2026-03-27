@@ -1,5 +1,6 @@
 #include "lunaruststates.h"
-
+#include "core/object/class_db.h"
+#include "scene/main/scene_tree.h"
 
 
 void LunarustStates::_bind_methods() {
@@ -10,8 +11,9 @@ void LunarustStates::_bind_methods() {
 	BIND_ENUM_CONSTANT(vn);
 	BIND_ENUM_CONSTANT(investigation);
 	BIND_ENUM_CONSTANT(psycho);
+	BIND_ENUM_CONSTANT(dead);
 	//Properties
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "player_mode", PROPERTY_HINT_ENUM, "fps,vn,investigation,psycho"), "ChangePlayerMode", "player_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "player_mode", PROPERTY_HINT_ENUM, "fps,vn,investigation,psycho,dead"), "ChangePlayerMode", "player_mode");
 	ADD_SIGNAL(MethodInfo("player_mode_changed", PropertyInfo(Variant::INT, "mode")));
 }
 void LunarustStates::ChangePlayerMode(PlayerModes mode) {

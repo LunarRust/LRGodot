@@ -11,11 +11,21 @@
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/resources/particle_process_material.h"
 
+// Add these includes so ClassDB, D_METHOD/BIND macros and SceneTree are available:
+#include "core/object/class_db.h"
+#include "scene/main/scene_tree.h"
+
+
 void EmissionPointGenerator::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("generate_emission_points", "emission_source", "emissor_count"), &EmissionPointGenerator::generate_emission_points);
+	ClassDB::bind_method(D_METHOD("select_mesh", "p_path"), &EmissionPointGenerator::select_mesh);
+	ClassDB::bind_method(D_METHOD("select_particles", "p_path"), &EmissionPointGenerator::select_particles);
+
 	BIND_ENUM_CONSTANT(SURFACE_POINTS);
 	BIND_ENUM_CONSTANT(SURFACE_POINTS_AND_NORMAL_DIRECTED);
 	BIND_ENUM_CONSTANT(VOLUME);
 
+	
 	
 }
 

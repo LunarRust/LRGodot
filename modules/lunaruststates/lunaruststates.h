@@ -2,14 +2,10 @@
 #define LUNARUSTSTATES_H
 
 #include "core/object/ref_counted.h"
-
-
+#include "core/variant/type_info.h" // Required for VARIANT_ENUM_CAST use
 
 class LunarustStates : public RefCounted {
 	GDCLASS(LunarustStates, RefCounted);
-	
-	Signal player_mode_changed;
-
 
 public:
 	
@@ -17,7 +13,8 @@ public:
 		fps,
 		vn,
 		investigation,
-		psycho
+		psycho,
+		dead
 	};
 
 	PlayerModes player_mode;
