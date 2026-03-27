@@ -499,6 +499,8 @@ Light3D::Light3D(RSE::LightType p_type) {
 	set_temperature(6500.0); // Nearly white.
 	set_disable_scale(true);
 	set_enable_distance_fade(distance_fade_enabled);
+	// Set light visual layers
+	VisualInstance3D::set_layer_mask(524289);
 }
 
 Light3D::Light3D() {
