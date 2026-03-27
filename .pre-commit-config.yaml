@@ -58,7 +58,7 @@ repos:
         types_or: [text]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1 # Latest version that supports Python 3.8
+    rev: v1.19.1
     hooks:
       - id: mypy
         files: \.py$
@@ -108,6 +108,18 @@ repos:
         entry: python misc/scripts/validate_xml.py
         files: ^(doc/classes|.*/doc_classes)/.*\.xml$
         additional_dependencies: [xmlschema]
+
+      - id: validate-codeowners
+        name: validate-codeowners
+        language: python
+        entry: python misc/scripts/validate_codeowners.py
+        args: [--unowned]
+
+      - id: validate-includes
+        name: validate-includes
+        language: python
+        entry: python misc/scripts/validate_includes.py
+        files: \.(c|h|cpp|hpp|cc|hh|cxx|hxx|m|mm|inc)$
 
       - id: eslint
         name: eslint
