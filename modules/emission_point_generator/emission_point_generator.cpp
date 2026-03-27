@@ -16,9 +16,9 @@ void EmissionPointGenerator::_bind_methods() {
 	BIND_ENUM_CONSTANT(SURFACE_POINTS_AND_NORMAL_DIRECTED);
 	BIND_ENUM_CONSTANT(VOLUME);
 
-	ClassDB::bind_method(D_METHOD("generate_emission_points", "emission_source", "emissor_count"), &EmissionPointGenerator::generate_emission_points);
-	ClassDB::bind_method(D_METHOD("select_mesh", "p_path"), &EmissionPointGenerator::select_mesh);
-	ClassDB::bind_method(D_METHOD("select_particles", "p_path"), &EmissionPointGenerator::select_particles);
+	bind_method(D_METHOD("generate_emission_points", "emission_source", "emissor_count"), &EmissionPointGenerator::generate_emission_points);
+	bind_method(D_METHOD("select_mesh", "p_path"), &EmissionPointGenerator::select_mesh);
+	bind_method(D_METHOD("select_particles", "p_path"), &EmissionPointGenerator::select_particles);
 	
 }
 
