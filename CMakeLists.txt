@@ -12618,4 +12618,5 @@ add_executable(LRGodot
         thirdparty/zstd/decompress/zstd_decompress_block.h
         thirdparty/zstd/decompress/zstd_decompress_internal.h
         thirdparty/zstd/zstd.h
-        thirdparty/zstd/zstd_errors.h)
+        thirdparty/zstd/zstd_errors.h
+        scene/3d/physics/magnet_3d.cpp)
