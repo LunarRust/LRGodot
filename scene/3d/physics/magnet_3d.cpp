@@ -70,16 +70,16 @@ void Magnet3D::_bind_methods() {
 void Magnet3D::_notification(int p_what) {
 	// When node enters the physics world, enable monitoring so the physics server
 	// registers the Area and get_overlapping_bodies() returns results.
-	if (p_what == NOTIFICATION_ENTER_WORLD) {
+	/*if (p_what == NOTIFICATION_ENTER_WORLD) {
 		set_monitoring(true);
 		set_monitorable(true);
-	}
+	}*/
 
 	// Disable monitoring when leaving the physics world to avoid stale registrations.
-	if (p_what == NOTIFICATION_EXIT_WORLD) {
+	/*if (p_what == NOTIFICATION_EXIT_WORLD) {
 		set_monitoring(false);
 		set_monitorable(false);
-	}
+	}*/
 
 	// Only run during the physics step. NOTIFICATION_PHYSICS_PROCESS is sent at the engine's
 	// fixed physics tick rate. Using it ensures deterministic physics interactions.
