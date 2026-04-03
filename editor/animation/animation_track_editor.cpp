@@ -1485,7 +1485,7 @@ void AnimationTimelineEdit::_notification(int p_what) {
 		}
 		case NOTIFICATION_READY: {
 			panner->setup((ViewPanner::ControlScheme)EDITOR_GET("editors/panning/animation_editors_panning_scheme").operator int(), ED_GET_SHORTCUT("canvas_item_editor/pan_view"), bool(EDITOR_GET("editors/panning/simple_panning")));
-			panner->setup_warped_panning(get_viewport(), EDITOR_GET("editors/panning/warped_mouse_panning"));
+			panner->setup_warped_panning(this, EDITOR_GET("editors/panning/warped_mouse_panning"));
 		} break;
 
 		case NOTIFICATION_RESIZED: {
@@ -3484,7 +3484,7 @@ bool AnimationTrackEdit::_lookup_key(int p_key_idx) const {
 					ScriptEditor::get_singleton()->goto_help(vformat("class_method:%s:%s", target->get_class_name(), method));
 				} else {
 					// Still not found, which means the target doesn't have this method. Warn the user.
-					WARN_PRINT_ED(TTR(vformat("Failed to lookup method: \"%s\"", method)));
+					WARN_PRINT_ED(vformat(TTR("Failed to lookup method: \"%s\""), method));
 				}
 			}
 			return true;
@@ -5598,7 +5598,7 @@ void AnimationTrackEditor::_notification(int p_what) {
 			}
 
 			panner->setup((ViewPanner::ControlScheme)EDITOR_GET("editors/panning/animation_editors_panning_scheme").operator int(), ED_GET_SHORTCUT("canvas_item_editor/pan_view"), bool(EDITOR_GET("editors/panning/simple_panning")));
-			panner->setup_warped_panning(get_viewport(), EDITOR_GET("editors/panning/warped_mouse_panning"));
+			panner->setup_warped_panning(this, EDITOR_GET("editors/panning/warped_mouse_panning"));
 		} break;
 
 		case NOTIFICATION_THEME_CHANGED: {
@@ -5651,7 +5651,7 @@ void AnimationTrackEditor::_notification(int p_what) {
 			EditorNode::get_singleton()->get_editor_selection()->connect("selection_changed", callable_mp(this, &AnimationTrackEditor::_selection_changed));
 
 			panner->setup((ViewPanner::ControlScheme)EDITOR_GET("editors/panning/animation_editors_panning_scheme").operator int(), ED_GET_SHORTCUT("canvas_item_editor/pan_view"), bool(EDITOR_GET("editors/panning/simple_panning")));
-			panner->setup_warped_panning(get_viewport(), EDITOR_GET("editors/panning/warped_mouse_panning"));
+			panner->setup_warped_panning(this, EDITOR_GET("editors/panning/warped_mouse_panning"));
 		} break;
 
 		case NOTIFICATION_VISIBILITY_CHANGED: {
