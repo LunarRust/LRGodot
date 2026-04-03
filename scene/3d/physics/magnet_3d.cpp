@@ -75,6 +75,11 @@ void Magnet3D::_notification(int p_what) {
 		return;
 	}
 
+	// If monitoring is diabled, do not continue.
+	if (is_monitoring() == false) {
+		return;
+	}
+
 	// Resolve target node robustly:
 	// - Avoid direct casting from Variant (some engine helper overloads return Variant).
 	// - Use has_node/get_node to retrieve a Node* if present, then cast to Node3D.
@@ -93,7 +98,7 @@ void Magnet3D::_notification(int p_what) {
 	// overlapping this area. We iterate it and operate only on physics bodies.
 	TypedArray<Node3D> bodies = get_overlapping_bodies();
 
-	// Diagnostic: print count so you can confirm overlaps are detected.
+
 
 	for (int i = 0; i < bodies.size(); ++i) {
 		// `TypedArray` elements are stored as Variant underneath. Avoid direct initialization
@@ -140,10 +145,12 @@ void Magnet3D::_notification(int p_what) {
 		// Apply the computed force via the PhysicsServer API using the body's RID.
 		// Using PhysicsServer3D ensures compatibility with different physics modules
 		// (Godot's built-in, Jolt, etc.) and lets the server handle wake-up semantics.
-		real_t dt = 0;
+
+		// dont need this
+		/*real_t dt = 0;
 		if (get_tree()) {
 			dt = get_tree()->get_physics_process_time();
-		}
+		}*/
 
 		RID body_rid = pb->get_rid();
 		PhysicsServer3D::get_singleton()->body_apply_central_force(body_rid, (force) + damping);
