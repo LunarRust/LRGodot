@@ -1,9 +1,9 @@
-short_name = "godot"
-name = "Godot Engine"
+short_name = "LRGodot"
+name = "Lunarust Godot Engine"
 major = 4
 minor = 7
-patch = 0
-status = "dev"
+patch = 3
+status = "Production"
 module_config = ""
 website = "https://godotengine.org"
 docs = "latest"
