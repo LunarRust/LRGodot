@@ -141,9 +141,15 @@ void AnimationNodeBlendSpace2DEditor::_blend_space_gui_input(const Ref<InputEven
 
 			menu->add_submenu_node_item(TTR("Add Animation"), animations_menu);
 
-			for (const StringName &E : tree->get_sorted_animation_list()) {
-				animations_menu->add_icon_item(get_editor_theme_icon(SNAME("Animation")), E);
-				animations_to_add.push_back(E);
+			const LocalVector<StringName> &animation_list = tree->get_sorted_animation_list();
+			if (animation_list.is_empty()) {
+				animations_menu->add_item(TTR("No available animations"));
+				animations_menu->set_item_disabled(-1, true);
+			} else {
+				for (const StringName &E : animation_list) {
+					animations_menu->add_icon_item(get_editor_theme_icon(SNAME("Animation")), E);
+					animations_to_add.push_back(E);
+				}
 			}
 
 			for (const StringName &E : classes) {
@@ -747,7 +753,7 @@ void AnimationNodeBlendSpace2DEditor::_snap_toggled() {
 }
 
 void AnimationNodeBlendSpace2DEditor::_update_space() {
-	if (updating) {
+	if (updating || blend_space.is_null()) {
 		return;
 	}
 
@@ -891,7 +897,7 @@ void AnimationNodeBlendSpace2DEditor::_erase_selected() {
 }
 
 void AnimationNodeBlendSpace2DEditor::_update_edited_point_pos() {
-	if (updating) {
+	if (updating || blend_space.is_null()) {
 		return;
 	}
 
@@ -968,6 +974,9 @@ void AnimationNodeBlendSpace2DEditor::_edit_point_index(double p_index) {
 
 void AnimationNodeBlendSpace2DEditor::_set_selected_point(int p_index) {
 	selected_point = p_index;
+	if (blend_space.is_null()) {
+		return;
+	}
 	_update_tool_erase();
 	if (p_index != -1) {
 		_update_edited_point_pos();
