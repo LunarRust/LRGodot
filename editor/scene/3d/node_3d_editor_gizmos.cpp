@@ -34,7 +34,6 @@
 #include "core/math/geometry_3d.h"
 #include "core/object/class_db.h"
 #include "editor/editor_node.h"
-#include "scene/3d/physics/joints/distance_joint_3d.h"
 #include "editor/editor_string_names.h"
 #include "editor/scene/3d/node_3d_editor_plugin.h"
 #include "editor/scene/3d/node_3d_editor_viewport.h"
