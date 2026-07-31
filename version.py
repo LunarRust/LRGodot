@@ -1,8 +1,8 @@
 short_name = "LRGodot"
 name = "Lunarust Godot Engine"
 major = 4
-minor = 7
-patch = 3
+minor = 8
+patch = 0
 status = "lunarust"
 module_config = ""
 website = "https://godotengine.org"

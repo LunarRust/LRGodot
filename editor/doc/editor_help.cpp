@@ -43,6 +43,7 @@
 #include "core/object/script_language.h"
 #include "core/os/keyboard.h"
 #include "core/os/os.h"
+#include "core/string/regex.h"
 #include "core/string/string_builder.h"
 #include "core/version.h"
 #include "editor/doc/doc_data_compressed.gen.h"
@@ -54,6 +55,7 @@
 #include "editor/file_system/editor_paths.h"
 #include "editor/gui/editor_toaster.h"
 #include "editor/inspector/editor_property_name_processor.h"
+#include "editor/script/script_editor_navigation_marker.h"
 #include "editor/script/script_editor_plugin.h"
 #include "editor/script/syntax_highlighters.h"
 #include "editor/settings/editor_settings.h"
@@ -73,8 +75,6 @@
 #ifdef MODULE_MONO_ENABLED
 #include "modules/mono/csharp_script.h"
 #endif
-
-#include "modules/regex/regex.h"
 
 #define CONTRIBUTE_URL "https://contributing.godotengine.org/en/latest/documentation/class_reference.html"
 
@@ -270,13 +270,14 @@ void EditorHelp::_search(bool p_search_previous) {
 
 void EditorHelp::_class_desc_finished() {
 	if (scroll_to >= 0) {
-		class_desc->connect(SceneStringName(draw), callable_mp(class_desc, &RichTextLabel::scroll_to_paragraph).bind(scroll_to), CONNECT_ONE_SHOT | CONNECT_DEFERRED);
+		class_desc->connect(SceneStringName(draw), callable_mp(this, &EditorHelp::_class_desc_scroll_to_paragraph).bind(scroll_to, need_save_new_history), CONNECT_ONE_SHOT | CONNECT_DEFERRED);
 	}
 	scroll_to = -1;
+	need_save_new_history = false;
 }
 
 void EditorHelp::_class_list_select(const String &p_select) {
-	_goto_desc(p_select);
+	_goto_desc(p_select, true);
 }
 
 void EditorHelp::_class_desc_select(const String &p_select) {
@@ -344,12 +345,14 @@ void EditorHelp::_class_desc_select(const String &p_select) {
 		// Case order is important here to correctly handle edge cases like `Variant.Type` in `@GlobalScope`.
 		if (table->has(link)) {
 			// Found in the current page.
+			ScriptEditorNavigationMarker::get_singleton()->locate_begin();
 			if (class_desc->is_finished()) {
-				emit_signal(SNAME("request_save_history"));
-				class_desc->scroll_to_paragraph((*table)[link]);
+				_class_desc_scroll_to_paragraph((*table)[link], _need_save_new_history());
 			} else {
 				scroll_to = (*table)[link];
+				need_save_new_history = _need_save_new_history();
 			}
+			ScriptEditorNavigationMarker::get_singleton()->locate_end();
 		} else {
 			// Look for link in `@GlobalScope`.
 			if (topic == "class_enum") {
@@ -726,7 +729,7 @@ void EditorHelp::_pop_code_font() {
 	class_desc->pop(); // font
 }
 
-Error EditorHelp::_goto_desc(const String &p_class) {
+Error EditorHelp::_goto_desc(const String &p_class, bool p_can_trigger_save_history) {
 	if (!doc->class_list.has(p_class)) {
 		return ERR_DOES_NOT_EXIST;
 	}
@@ -738,11 +741,17 @@ Error EditorHelp::_goto_desc(const String &p_class) {
 	description_line = 0;
 
 	if (p_class == edited_class) {
+		if (p_can_trigger_save_history) {
+			trigger_history_save_on_navigate();
+		}
 		return OK; // Already there.
 	}
 
 	edited_class = p_class;
 	_update_doc();
+	if (p_can_trigger_save_history) {
+		trigger_history_save_on_navigate();
+	}
 	return OK;
 }
 
@@ -906,7 +915,7 @@ void EditorHelp::_update_method_descriptions(const DocData::ClassDoc &p_classdoc
 
 				class_desc->add_text(TTR("Error codes returned:"));
 				class_desc->add_newline();
-				class_desc->push_list(0, RichTextLabel::LIST_DOTS, false);
+				class_desc->push_list(1, RichTextLabel::LIST_DOTS, false);
 				for (int j = 0; j < method.errors_returned.size(); j++) {
 					if (j > 0) {
 						class_desc->add_newline();
@@ -1031,7 +1040,7 @@ void EditorHelp::_update_doc() {
 
 		String inherits = cd.inherits;
 		while (!inherits.is_empty()) {
-			_add_type_icon(inherits, theme_cache.doc_font_size, "ArrowRight");
+			_add_type_icon(inherits, theme_cache.doc_font_size, "Object");
 			class_desc->add_text(nbsp); // Otherwise icon borrows hyperlink from `_add_type()`.
 			_add_type(inherits);
 
@@ -1060,7 +1069,7 @@ void EditorHelp::_update_doc() {
 				class_desc->add_text(" , ");
 			}
 
-			_add_type_icon(itr->get(), theme_cache.doc_font_size, "ArrowRight");
+			_add_type_icon(itr->get(), theme_cache.doc_font_size, "Object");
 			class_desc->add_text(nbsp); // Otherwise icon borrows hyperlink from `_add_type()`.
 			_add_type(itr->get());
 		}
@@ -1678,18 +1687,17 @@ void EditorHelp::_update_doc() {
 		Vector<DocData::ConstantDoc> constants;
 
 		for (const DocData::ConstantDoc &constant : cd.constants) {
+			// Ignore undocumented private.
+			const bool is_documented = constant.is_deprecated || constant.is_experimental || !constant.description.strip_edges().is_empty();
+			if (!is_documented && constant.name.begins_with("_")) {
+				continue;
+			}
 			if (!constant.enumeration.is_empty()) {
 				if (!enums.has(constant.enumeration)) {
 					enums[constant.enumeration] = Vector<DocData::ConstantDoc>();
 				}
-
 				enums[constant.enumeration].push_back(constant);
 			} else {
-				// Ignore undocumented private.
-				const bool is_documented = constant.is_deprecated || constant.is_experimental || !constant.description.strip_edges().is_empty();
-				if (!is_documented && constant.name.begins_with("_")) {
-					continue;
-				}
 				constants.push_back(constant);
 			}
 		}
@@ -2344,7 +2352,7 @@ void EditorHelp::_update_doc() {
 }
 
 void EditorHelp::_request_help(const String &p_string) {
-	Error err = _goto_desc(p_string);
+	Error err = _goto_desc(p_string, false);
 	if (err == OK) {
 		EditorNode::get_singleton()->get_editor_main_screen()->select(EditorMainScreen::EDITOR_SCRIPT);
 	}
@@ -2432,10 +2440,34 @@ void EditorHelp::_help_callback(const String &p_topic) {
 	}
 
 	if (class_desc->is_finished()) {
-		class_desc->scroll_to_paragraph(line);
+		_class_desc_scroll_to_paragraph(line, _need_save_new_history());
 	} else {
 		scroll_to = line;
+		need_save_new_history = _need_save_new_history();
 	}
+}
+
+void EditorHelp::_class_desc_scroll_to_paragraph(int p_line, bool p_save_history) {
+	// Save history before scrolling.
+	if (p_save_history) {
+		Dictionary state = get_state();
+		// Row 0 is not a state worth saving as a previous state to history.
+		if (int(state["row"]) > 0) {
+			emit_signal(SNAME("_request_save_new_history"), state);
+		}
+	}
+	class_desc->scroll_to_paragraph(p_line);
+	// Save history after scrolling.
+	if (p_save_history) {
+		emit_signal(SNAME("_request_save_new_history"), get_state());
+		if (ScriptEditorNavigationMarker::get_singleton()->is_locating()) {
+			ScriptEditorNavigationMarker::get_singleton()->locate_end();
+		}
+	}
+}
+
+bool EditorHelp::_need_save_new_history() const {
+	return !ScriptEditorNavigationMarker::get_singleton()->is_initializing() && ScriptEditorNavigationMarker::get_singleton()->is_locating();
 }
 
 static void _add_text_to_rt(const String &p_bbcode, RichTextLabel *p_rt, const Control *p_owner_node, const String &p_class) {
@@ -3352,7 +3384,7 @@ void EditorHelp::go_to_help(const String &p_help) {
 
 void EditorHelp::go_to_class(const String &p_class) {
 	_wait_for_thread();
-	_goto_desc(p_class);
+	_goto_desc(p_class, true);
 }
 
 void EditorHelp::update_doc() {
@@ -3360,6 +3392,21 @@ void EditorHelp::update_doc() {
 	ERR_FAIL_COND(!doc->class_list.has(edited_class));
 	ERR_FAIL_COND(!doc->class_list[edited_class].is_script_doc);
 	_update_doc();
+}
+
+void EditorHelp::trigger_history_save_on_navigate() {
+	if (_need_save_new_history()) {
+		emit_signal(SNAME("_request_save_new_history"), get_state());
+		if (ScriptEditorNavigationMarker::get_singleton()->is_locating()) {
+			ScriptEditorNavigationMarker::get_singleton()->locate_end();
+		}
+	}
+}
+
+Dictionary EditorHelp::get_state() {
+	Dictionary state;
+	state["row"] = get_scroll(); // Use "row" to simplify the logic when processing history list.
+	return state;
 }
 
 void EditorHelp::cleanup_doc() {
@@ -3380,12 +3427,15 @@ Vector<Pair<String, int>> EditorHelp::get_sections() {
 
 void EditorHelp::scroll_to_section(int p_section_index) {
 	_wait_for_thread();
+	ScriptEditorNavigationMarker::get_singleton()->locate_begin();
 	int line = section_line[p_section_index].second;
 	if (class_desc->is_finished()) {
-		class_desc->scroll_to_paragraph(line);
+		_class_desc_scroll_to_paragraph(line, _need_save_new_history());
 	} else {
 		scroll_to = line;
+		need_save_new_history = _need_save_new_history();
 	}
+	ScriptEditorNavigationMarker::get_singleton()->locate_end();
 }
 
 void EditorHelp::popup_search() {
@@ -3425,7 +3475,7 @@ void EditorHelp::_bind_methods() {
 	ClassDB::bind_method("_help_callback", &EditorHelp::_help_callback);
 
 	ADD_SIGNAL(MethodInfo("go_to_help"));
-	ADD_SIGNAL(MethodInfo("request_save_history"));
+	ADD_SIGNAL(MethodInfo("_request_save_new_history", PropertyInfo(Variant::DICTIONARY, "state")));
 }
 
 void EditorHelp::init_gdext_pointers() {
@@ -3685,7 +3735,7 @@ EditorHelpBit::HelpData EditorHelpBit::_get_property_help_data(const StringName 
 							if (item_descr.is_empty()) {
 								item_descr = "[color=<EditorHelpBitCommentColor>][i]" + TTR("No description available.") + "[/i][/color]";
 							}
-							current.description += vformat("\n[b]%s:[/b] %s", item_name, item_descr);
+							current.description += vformat("\n[b]%s[/b] [color=<EditorHelpBitCommentColor>]=[/color] %s[color=<EditorHelpBitCommentColor>]:[/color] %s", item_name, constant.value, item_descr);
 						}
 					}
 					current.description = current.description.lstrip("\n");
@@ -4369,6 +4419,11 @@ void EditorHelpBit::_bind_methods() {
 
 void EditorHelpBit::_notification(int p_what) {
 	switch (p_what) {
+		case NOTIFICATION_TRANSLATION_CHANGED:
+			if (!current_symbol.is_empty()) {
+				parse_symbol(current_symbol, current_prologue);
+			}
+			break;
 		case NOTIFICATION_THEME_CHANGED:
 			content->begin_bulk_theme_override();
 
@@ -4384,6 +4439,17 @@ void EditorHelpBit::_notification(int p_what) {
 			_update_labels();
 			break;
 	}
+}
+
+void EditorHelpBit::clear_cache() {
+	doc_class_cache.clear();
+	doc_enum_cache.clear();
+	doc_constant_cache.clear();
+	doc_property_cache.clear();
+	doc_theme_item_cache.clear();
+	doc_method_cache.clear();
+	doc_signal_cache.clear();
+	doc_annotation_cache.clear();
 }
 
 String EditorHelpBit::get_as_plain_text(const String &p_symbol, const String &p_prologue) {
@@ -4631,11 +4697,15 @@ void EditorHelpBit::parse_symbol(const String &p_symbol, const String &p_prologu
 		item_data = JSON::parse_string(slices[3]);
 	}
 
+	current_symbol = p_symbol;
+	current_prologue = p_prologue;
+
 	symbol_doc_link = String();
 	symbol_class_name = class_name;
 	symbol_type = String();
 	symbol_name = item_name;
 	symbol_hint = SYMBOL_HINT_NONE;
+
 	help_data = HelpData();
 
 	if (item_type == "class") {
@@ -4799,6 +4869,9 @@ void EditorHelpBit::parse_symbol(const String &p_symbol, const String &p_prologu
 }
 
 void EditorHelpBit::set_custom_text(const String &p_type, const String &p_name, const String &p_description) {
+	current_symbol = String();
+	current_prologue = String();
+
 	symbol_doc_link = String();
 	symbol_class_name = String();
 	symbol_type = p_type;
@@ -4832,7 +4905,12 @@ void EditorHelpBit::update_content_height() {
 	content->set_custom_minimum_size(Size2(content->get_custom_minimum_size().x, CLAMP(content_height, content_min_height, content_max_height)));
 }
 
-EditorHelpBit::EditorHelpBit(const String &p_symbol, const String &p_prologue, bool p_use_class_prefix, bool p_allow_selection, bool p_in_tooltip) {
+EditorHelpBit::EditorHelpBit(
+		const String &p_symbol,
+		const String &p_prologue,
+		bool p_use_class_prefix,
+		bool p_allow_selection,
+		bool p_in_tooltip) {
 	add_theme_constant_override("separation", 0);
 
 	title = memnew(RichTextLabel);
@@ -4958,7 +5036,12 @@ void EditorHelpBitTooltip::_notification(int p_what) {
 	}
 }
 
-Control *EditorHelpBitTooltip::make_tooltip(Control *p_target, const String &p_symbol, const String &p_prologue, bool p_use_class_prefix, bool p_shortcut) {
+Control *EditorHelpBitTooltip::make_tooltip(
+		Control *p_target,
+		const String &p_symbol,
+		const String &p_prologue,
+		bool p_use_class_prefix,
+		bool p_shortcut) {
 	ERR_FAIL_NULL_V(p_target, _make_invisible_control());
 
 	// Show the custom tooltip only if it is not already visible.
@@ -5149,7 +5232,7 @@ void EditorHelpHighlighter::highlight(RichTextLabel *p_rich_text_label, Language
 	}
 }
 
-void EditorHelpHighlighter::reset_cache() {
+void EditorHelpHighlighter::clear_cache() {
 	const Color text_color = EDITOR_GET("text_editor/theme/highlighting/text_color");
 
 #ifdef MODULE_GDSCRIPT_ENABLED
