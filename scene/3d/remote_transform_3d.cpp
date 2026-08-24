@@ -102,6 +102,9 @@ void RemoteTransform3D::_update_remote() {
 }
 
 void RemoteTransform3D::_notification(int p_what) {
+	if (!enabled) {
+		return;
+	}
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
 			_update_cache();
@@ -158,6 +161,21 @@ void RemoteTransform3D::set_use_global_coordinates(const bool p_enable) {
 	set_notify_transform(use_global_coordinates);
 	set_notify_local_transform(!use_global_coordinates);
 	_update_remote();
+}
+
+bool RemoteTransform3D::is_enabled() const {
+	return enabled;
+}
+void RemoteTransform3D::set_enabled(const bool p_enable) {
+	if (enabled == p_enable) {
+		return;
+	}
+	enabled = p_enable;
+	if (enabled) {
+		set_notify_transform(true);
+	} else {
+		set_notify_transform(false);
+	}
 }
 
 bool RemoteTransform3D::get_use_global_coordinates() const {
@@ -222,6 +240,9 @@ void RemoteTransform3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_use_global_coordinates", "use_global_coordinates"), &RemoteTransform3D::set_use_global_coordinates);
 	ClassDB::bind_method(D_METHOD("get_use_global_coordinates"), &RemoteTransform3D::get_use_global_coordinates);
 
+	ClassDB::bind_method(D_METHOD("set_enabled", "enabled"), &RemoteTransform3D::set_enabled);
+	ClassDB::bind_method(D_METHOD("is_enabled"), &RemoteTransform3D::is_enabled
+
 	ClassDB::bind_method(D_METHOD("set_update_position", "update_remote_position"), &RemoteTransform3D::set_update_position);
 	ClassDB::bind_method(D_METHOD("get_update_position"), &RemoteTransform3D::get_update_position);
 	ClassDB::bind_method(D_METHOD("set_update_rotation", "update_remote_rotation"), &RemoteTransform3D::set_update_rotation);
@@ -229,6 +250,7 @@ void RemoteTransform3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_update_scale", "update_remote_scale"), &RemoteTransform3D::set_update_scale);
 	ClassDB::bind_method(D_METHOD("get_update_scale"), &RemoteTransform3D::get_update_scale);
 
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "enabled"), "set_enabled", "is_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "remote_path", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Node3D"), "set_remote_node", "get_remote_node");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_global_coordinates"), "set_use_global_coordinates", "get_use_global_coordinates");
 

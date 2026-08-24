@@ -39,6 +39,7 @@ class RemoteTransform3D : public Node3D {
 
 	ObjectID cache;
 
+	bool enabled = true;
 	bool use_global_coordinates = true;
 	bool update_remote_position = true;
 	bool update_remote_rotation = true;
@@ -55,6 +56,8 @@ public:
 	void set_remote_node(const NodePath &p_remote_node);
 	NodePath get_remote_node() const;
 
+	void set_enabled(const bool p_enable);
+	bool is_enabled() const;
 	void set_use_global_coordinates(const bool p_enable);
 	bool get_use_global_coordinates() const;
 
