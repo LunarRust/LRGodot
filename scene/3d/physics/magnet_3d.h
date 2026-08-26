@@ -1,7 +1,7 @@
 //
 // intial GDscript implementation: https://github.com/Dilonk1234
 // 
-// Engine implementation: OctoHato
+// Engine implementation: Juniper Mitchell
 //
 
 #pragma once

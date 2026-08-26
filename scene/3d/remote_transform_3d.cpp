@@ -241,7 +241,7 @@ void RemoteTransform3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_use_global_coordinates"), &RemoteTransform3D::get_use_global_coordinates);
 
 	ClassDB::bind_method(D_METHOD("set_enabled", "enabled"), &RemoteTransform3D::set_enabled);
-	ClassDB::bind_method(D_METHOD("is_enabled"), &RemoteTransform3D::is_enabled
+	ClassDB::bind_method(D_METHOD("is_enabled"), &RemoteTransform3D::is_enabled);
 
 	ClassDB::bind_method(D_METHOD("set_update_position", "update_remote_position"), &RemoteTransform3D::set_update_position);
 	ClassDB::bind_method(D_METHOD("get_update_position"), &RemoteTransform3D::get_update_position);
