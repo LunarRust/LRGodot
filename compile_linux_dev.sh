@@ -1,4 +1,4 @@
-cd /run/media/octo/980Evo/LRGodot/
+cd "/run/media/octo/980Evo/LRGodot copy/"
 scons platform=linuxbsd target=editor module_godot_tracy_enabled=true production=no dev_build=yes module_godot_tracy_enabled=true extra_suffix=lunarust_dev
 mkdir -p $HOME/.lunarust_nuget/godot_nuget_store/
 dotnet nuget add source $HOME/.lunarust_nuget/godot_nuget_store/ --name LRGodotNugetSource
