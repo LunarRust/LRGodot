@@ -562,6 +562,8 @@ else:
     # Disable assert() for production targets (only used in thirdparty code).
     env.Append(CPPDEFINES=["NDEBUG"])
 
+
+
 # This is not part of fast_unsafe because the only downside it has compared to
 # the default is that SCons won't mark files that were changed in the last second
 # as different. This is unlikely to be a problem in any real situation as just booting
