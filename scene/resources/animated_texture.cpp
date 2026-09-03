@@ -51,7 +51,6 @@ void AnimatedTexture::_update_proxy() {
 
 	time += delta;
 
-	float speed = speed_scale == 0 ? 0 : std::abs(1.0 / speed_scale);
 
 	int iter_max = frame_count;
 	while (iter_max && !pause) {
@@ -171,6 +170,7 @@ void AnimatedTexture::set_speed_scale(float p_scale) {
 	RWLockWrite r(rw_lock);
 
 	speed_scale = p_scale;
+	speed = speed_scale == 0 ? 0 : std::abs(1.0 / speed_scale);
 }
 
 float AnimatedTexture::get_speed_scale() const {

@@ -60,6 +60,7 @@ private:
 	bool one_shot = false;
 	float speed_scale = 1.0;
 
+	float speed = 0.0;
 	float time = 0.0;
 
 	uint64_t prev_ticks = 0;

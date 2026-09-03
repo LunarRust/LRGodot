@@ -14,7 +14,7 @@ Magnet3D::Magnet3D() {
 	set_physics_process(true);
 
 	// Don't call set_monitoring/set_monitorable here — the Area may not have a valid RID yet.
-	ERR_PRINT_ONCE("Magnet3D: constructed (physics process enabled).");
+	//ERR_PRINT_ONCE("Magnet3D: constructed (physics process enabled).");
 }
 
 /* ---- Property setters/getters ------------------------------------------------ */
