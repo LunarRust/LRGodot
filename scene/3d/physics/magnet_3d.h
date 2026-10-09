@@ -15,10 +15,16 @@ class Magnet3D : public Area3D {
 public:
 	// Exposed as a NodePath property to be robust when the node isn't in the tree yet.
 	NodePath target_path;
+	bool enabled = true;
 	float strength = 20.0f;
 	float damping_strength = 5.0f;
 
 	Magnet3D(); // <- add constructor declaration
+
+	// Property setters/getters
+
+	void set_enabled(bool p_enabled);
+	bool get_enabled() const;
 
 	void set_target_path(const NodePath &p_path);
 	NodePath get_target_path() const;

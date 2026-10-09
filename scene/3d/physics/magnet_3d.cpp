@@ -19,6 +19,20 @@ Magnet3D::Magnet3D() {
 
 /* ---- Property setters/getters ------------------------------------------------ */
 
+
+void Magnet3D::set_enabled(bool p_enabled) {
+	enabled = p_enabled;
+	if (enabled) {
+		set_monitoring(true);
+	} else {
+		set_monitoring(false);
+	}
+}
+
+bool Magnet3D::get_enabled() const {
+	return enabled;
+}
+
 void Magnet3D::set_target_path(const NodePath &p_path) {
 	// Store a NodePath instead of a raw pointer. This keeps the resource robust across
 	// scene load/unload and avoids dangling pointers when nodes are reparented.
@@ -48,6 +62,11 @@ float Magnet3D::get_damping_strength() const {
 /* ---- ClassDB bindings (editor + scripting) ---------------------------------- */
 
 void Magnet3D::_bind_methods() {
+
+	ClassDB::bind_method(D_METHOD("set_enabled", "enabled"), &Magnet3D::set_enabled);
+	ClassDB::bind_method(D_METHOD("get_enabled"), &Magnet3D::get_enabled);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "enabled"), "set_enabled", "get_enabled");
+
 	// Expose the target NodePath property to the editor and scripting.
 	// Variant::NODE_PATH identifies the property type; PROPERTY_HINT_NODE_PATH_VALID_TYPES
 	// restricts the path picker to Node3D types in the editor.
@@ -63,6 +82,7 @@ void Magnet3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_damping_strength", "damping_strength"), &Magnet3D::set_damping_strength);
 	ClassDB::bind_method(D_METHOD("get_damping_strength"), &Magnet3D::get_damping_strength);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "damping_strength"), "set_damping_strength", "get_damping_strength");
+
 }
 
 /* ---- Runtime behavior (physics tick) --------------------------------------- */
@@ -76,7 +96,7 @@ void Magnet3D::_notification(int p_what) {
 	}
 
 	// If monitoring is diabled, do not continue.
-	if (is_monitoring() == false) {
+	if (is_monitoring() == false || enabled == false) {
 		return;
 	}
 
